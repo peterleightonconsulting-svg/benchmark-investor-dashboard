@@ -6,9 +6,9 @@ const path = require('path');
 const app = express();
 app.use(cors());
 
-// Use environment variables for port and database
 const port = process.env.PORT || 3001;
 
+// API Route
 app.get('/api/stats', async (req, res) => {
   let connection;
   try {
@@ -25,7 +25,6 @@ app.get('/api/stats', async (req, res) => {
       return rows[0] ? Object.values(rows[0])[0] : 0;
     }
 
-    // Adoption & Growth
     const totalSignups = await queryVal("SELECT COUNT(*) FROM users");
     const activeCliniciansCount = await queryVal("SELECT COUNT(DISTINCT patients.doctor_id) FROM patient_test_sessions JOIN patients ON patient_test_sessions.patient_id = patients.id");
     const paidClinicians = await queryVal("SELECT COUNT(*) FROM users WHERE subscribed_status = 1 OR s_transactionId IS NOT NULL");
@@ -33,12 +32,10 @@ app.get('/api/stats', async (req, res) => {
     const mau = await queryVal("SELECT COUNT(DISTINCT patients.doctor_id) FROM patient_test_sessions JOIN patients ON patient_test_sessions.patient_id = patients.id WHERE patient_test_sessions.created_at >= NOW() - INTERVAL 30 DAY");
     const [userGrowth] = await connection.query("SELECT DATE_FORMAT(created_at, '%Y-%m') as month, COUNT(*) as count FROM users GROUP BY month ORDER BY month DESC LIMIT 6");
 
-    // Conversion & Monetisation
     const conversionRate = activeCliniciansCount > 0 ? ((paidClinicians / activeCliniciansCount) * 100).toFixed(2) : 0;
     const [arpuRows] = await connection.query("SELECT AVG(amount) as avg_rev FROM subscription_plans");
     const arpu = arpuRows[0].avg_rev ? (parseFloat(arpuRows[0].avg_rev) / 100).toFixed(2) : 0;
 
-    // Usage & Engagement
     const totalSessions = await queryVal("SELECT COUNT(*) FROM patient_test_sessions");
     const totalPatients = await queryVal("SELECT COUNT(*) FROM patients");
     const avgSessionsPerClinician = activeCliniciansCount > 0 ? (totalSessions / activeCliniciansCount).toFixed(2) : 0;
@@ -46,12 +43,10 @@ app.get('/api/stats', async (req, res) => {
 
     const [testTypes] = await connection.query("SELECT tc.name as name, COUNT(ptr.id) as value FROM patient_test_records ptr JOIN test_list tl ON ptr.test_id = tl.id JOIN test_category tc ON tl.test_category_id = tc.id GROUP BY tc.name");
 
-    // Clinical Depth
     const [longitudinalData] = await connection.query("SELECT COUNT(*) as count FROM (SELECT patient_id, COUNT(*) as sessions FROM patient_test_sessions GROUP BY patient_id HAVING sessions >= 2) as sub");
     const patientsWithMultipleSessions = longitudinalData[0].count;
     const longitudinalPct = totalPatients > 0 ? ((patientsWithMultipleSessions / totalPatients) * 100).toFixed(1) : 0;
 
-    // Clinical Outcomes
     const [testRecords] = await connection.query("SELECT pts.patient_id, pts.test_date, ptr.test_id, tl.name AS test_name, tc.name AS category_name, ptr.left, ptr.right, ptr.no_laterality FROM patient_test_records ptr JOIN patient_test_sessions pts ON ptr.patient_test_session_id = pts.id JOIN test_list tl ON ptr.test_id = tl.id JOIN test_category tc ON tl.test_category_id = tc.id ORDER BY pts.patient_id, ptr.test_id, pts.test_date ASC");
     const patientTests = {};
     for (const row of testRecords) {
@@ -112,14 +107,15 @@ app.get('/api/stats', async (req, res) => {
   }
 });
 
-// Serve static frontend files
-app.use(express.static(path.join(__dirname, '../ui/dist')));
+// Serve static files from the React app
+const distPath = path.join(__dirname, '..', 'ui', 'dist');
+app.use(express.static(distPath));
 
-// For any other route, serve index.html (client-side routing)
+// The "catchall" handler: for any request that doesn't match one above, send back React's index.html file.
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, '../ui/dist/index.html'));
+  res.sendFile(path.join(distPath, 'index.html'));
 });
 
 app.listen(port, () => {
-  console.log(`Server running at port ${port}`);
+  console.log(`Server is running on port ${port}`);
 });
