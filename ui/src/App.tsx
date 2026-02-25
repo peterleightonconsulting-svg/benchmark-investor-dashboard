@@ -97,18 +97,20 @@ export default function App() {
         <div className="metric-card">
           <div className="metric-icon"><DollarSign size={24} /></div>
           <div className="metric-content">
-            <h3>Conversion Rate</h3>
-            <div className="metric-value">{metrics.conversionRate}%</div>
-            <div className="metric-subtitle">ARPU: ${metrics.arpu}</div>
+            <h3>Revenue (This Month)</h3>
+            <div className="metric-value">${metrics.currentMonthRev}</div>
+            <div className="metric-subtitle" style={{ color: metrics.revChangePct >= 0 ? '#10b981' : '#ef4444', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+              {metrics.revChangePct >= 0 ? '↑' : '↓'} {Math.abs(metrics.revChangePct)}% from last month
+            </div>
           </div>
         </div>
 
         <div className="metric-card">
           <div className="metric-icon"><Target size={24} /></div>
           <div className="metric-content">
-            <h3>Longitudinal Data</h3>
-            <div className="metric-value">{metrics.longitudinalPct}%</div>
-            <div className="metric-subtitle">Patients with {`>=`} 2 sessions</div>
+            <h3>Conversion Rate</h3>
+            <div className="metric-value">{metrics.conversionRate}%</div>
+            <div className="metric-subtitle">ARPU: ${metrics.arpu} (Paid Users)</div>
           </div>
         </div>
 

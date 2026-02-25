@@ -39,8 +39,25 @@ app.get('/api/stats', async (req, res) => {
     const [userGrowth] = await connection.query("SELECT DATE_FORMAT(created_at, '%Y-%m') as month, COUNT(*) as count FROM users GROUP BY month ORDER BY month DESC LIMIT 6");
 
     const conversionRate = activeCliniciansCount > 0 ? ((paidClinicians / activeCliniciansCount) * 100).toFixed(2) : 0;
-    const [arpuRows] = await connection.query("SELECT AVG(amount) as avg_rev FROM subscription_plans");
-    const arpu = arpuRows[0].avg_rev ? (parseFloat(arpuRows[0].avg_rev) / 100).toFixed(2) : 0;
+    
+    // Revenue & ARPU
+    const [totalTrans] = await connection.query("SELECT SUM(amount) as total FROM transactions");
+    const totalRevenue = totalTrans[0].total || 0;
+    const arpu = paidClinicians > 0 ? (totalRevenue / paidClinicians).toFixed(2) : 0;
+
+    // Monthly Revenue Comparison
+    const [currentMonthRevQuery] = await connection.query("SELECT SUM(amount) as total FROM transactions WHERE created_at >= DATE_FORMAT(NOW(), '%Y-%m-01')");
+    const currentMonthRev = currentMonthRevQuery[0].total || 0;
+
+    const [previousMonthRevQuery] = await connection.query("SELECT SUM(amount) as total FROM transactions WHERE created_at >= DATE_FORMAT(NOW() - INTERVAL 1 MONTH, '%Y-%m-01') AND created_at < DATE_FORMAT(NOW(), '%Y-%m-01')");
+    const previousMonthRev = previousMonthRevQuery[0].total || 0;
+    
+    let revChangePct = 0;
+    if (previousMonthRev > 0) {
+      revChangePct = (((currentMonthRev - previousMonthRev) / previousMonthRev) * 100).toFixed(1);
+    } else if (currentMonthRev > 0) {
+      revChangePct = 100; // 100% growth if previous month was 0
+    }
 
     const totalSessions = await queryVal("SELECT COUNT(*) FROM patient_test_sessions");
     const totalPatients = await queryVal("SELECT COUNT(*) FROM patients");
@@ -182,7 +199,7 @@ app.get('/api/stats', async (req, res) => {
     };
 
     res.json({
-      metrics: { totalSignups, activeCliniciansCount, wau, mau, conversionRate, arpu, avgSessionsPerClinician, avgPatientsPerClinician, longitudinalPct },
+      metrics: { totalSignups, activeCliniciansCount, wau, mau, conversionRate, arpu, currentMonthRev, revChangePct, avgSessionsPerClinician, avgPatientsPerClinician, longitudinalPct },
       charts: { userGrowth: userGrowth.reverse(), testDomains: testTypes },
       outcomes: { tests: improvementsData, proms: promsData }
     });
