@@ -34,7 +34,13 @@ export default function App() {
   }
 
   if (!data || !data.metrics) {
-    return <div className="error">Failed to load data. Please ensure the API is running.</div>;
+    const errorMessage = data?.error ? `Database Connection Error: ${data.error}` : "Failed to load data. Please ensure the API is running.";
+    return (
+      <div className="error" style={{ flexDirection: 'column', gap: '1rem', padding: '2rem', textAlign: 'center' }}>
+        <div>{errorMessage}</div>
+        <div style={{ fontSize: '1rem', color: '#6b7280' }}>Check your Render Logs for more details, or verify your DB_HOST, DB_USER, DB_PASSWORD, and DB_PORT environment variables.</div>
+      </div>
+    );
   }
 
   const { metrics, charts, outcomes } = data;
