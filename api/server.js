@@ -149,8 +149,7 @@ app.get('/api/stats', async (req, res) => {
         // Applying the rule: 6 weeks to 5 months (approx 21.7 weeks)
         if (weeks >= 6 && weeks <= 21.7) {
           if (first.pain_intensity !== null && last.pain_intensity !== null) {
-            // Inverting so that Reduction is positive (Higher is better)
-            painChanges.push(first.pain_intensity - last.pain_intensity);
+            painChanges.push(last.pain_intensity - first.pain_intensity);
           }
           if (first.activity_rating !== null && last.activity_rating !== null) {
             activityChanges.push(last.activity_rating - first.activity_rating);
