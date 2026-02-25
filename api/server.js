@@ -158,10 +158,27 @@ app.get('/api/stats', async (req, res) => {
       }
     }
 
+    const calcDistribution = (arr) => {
+      if (!arr.length) return { positive: 0, neutral: 0, negative: 0 };
+      let pos = 0, neu = 0, neg = 0;
+      arr.forEach(val => {
+        if (val > 0) pos++;
+        else if (val < 0) neg++;
+        else neu++;
+      });
+      return {
+        positive: ((pos / arr.length) * 100).toFixed(1),
+        neutral: ((neu / arr.length) * 100).toFixed(1),
+        negative: ((neg / arr.length) * 100).toFixed(1)
+      };
+    };
+
     const promsData = {
       patients: Math.max(painChanges.length, activityChanges.length),
       painChange: painChanges.length ? (painChanges.reduce((a, b) => a + b, 0) / painChanges.length).toFixed(2) : 0,
-      activityChange: activityChanges.length ? (activityChanges.reduce((a, b) => a + b, 0) / activityChanges.length).toFixed(2) : 0
+      activityChange: activityChanges.length ? (activityChanges.reduce((a, b) => a + b, 0) / activityChanges.length).toFixed(2) : 0,
+      painDistribution: calcDistribution(painChanges),
+      activityDistribution: calcDistribution(activityChanges)
     };
 
     res.json({
