@@ -17,7 +17,10 @@ app.get('/api/stats', async (req, res) => {
       port: process.env.DB_PORT || 3307,
       user: process.env.DB_USER || 'benchmark2026',
       password: process.env.DB_PASSWORD || 'Benchmark941!!',
-      database: process.env.DB_NAME || 'benchmark-mysql'
+      database: process.env.DB_NAME || 'benchmark-mysql',
+      ssl: {
+        rejectUnauthorized: false
+      }
     });
 
     async function queryVal(sql) {
