@@ -53,13 +53,6 @@ export default function App() {
     return <span className="neutral-change">{num.toFixed(2)}</span>;
   };
 
-  const renderPainChange = (val: string | number) => {
-    const num = parseFloat(val.toString());
-    if (num < 0) return <span className="positive-change">{num.toFixed(2)}</span>;
-    if (num > 0) return <span className="negative-change">+{num.toFixed(2)}</span>;
-    return <span className="neutral-change">{num.toFixed(2)}</span>;
-  };
-
   return (
     <div className="dashboard-container">
       <header className="dashboard-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -182,13 +175,13 @@ export default function App() {
           
           <div style={{ display: 'flex', gap: '1rem' }}>
             <div style={{ flex: 1, background: '#f9fafb', padding: '1rem', borderRadius: '0.5rem', border: '1px solid #e5e7eb' }}>
-              <div style={{ fontSize: '0.875rem', color: '#6b7280', marginBottom: '0.25rem' }}>Avg Pain Intensity Change</div>
-              <div style={{ fontSize: '1.5rem', fontWeight: 700 }}>{renderPainChange(outcomes.proms.painChange)}</div>
-              <div style={{ fontSize: '0.75rem', color: '#9ca3af', marginTop: '0.25rem' }}>(Negative is improvement)</div>
+              <div style={{ fontSize: '0.875rem', color: '#6b7280', marginBottom: '0.25rem' }}>Avg Pain Reduction</div>
+              <div style={{ fontSize: '1.5rem', fontWeight: 700 }}>{renderChange(outcomes.proms.painChange)}</div>
+              <div style={{ fontSize: '0.75rem', color: '#9ca3af', marginTop: '0.25rem' }}>(Positive is better)</div>
             </div>
 
             <div style={{ flex: 1, background: '#f9fafb', padding: '1rem', borderRadius: '0.5rem', border: '1px solid #e5e7eb' }}>
-              <div style={{ fontSize: '0.875rem', color: '#6b7280', marginBottom: '0.25rem' }}>Avg Activity Rating Change</div>
+              <div style={{ fontSize: '0.875rem', color: '#6b7280', marginBottom: '0.25rem' }}>Avg Activity Increase</div>
               <div style={{ fontSize: '1.5rem', fontWeight: 700 }}>{renderChange(outcomes.proms.activityChange)}</div>
               <div style={{ fontSize: '0.75rem', color: '#9ca3af', marginTop: '0.25rem' }}>(Higher is better)</div>
             </div>
@@ -198,7 +191,7 @@ export default function App() {
         <div className="chart-card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)', color: 'white' }}>
            <h3 style={{ color: 'white', marginBottom: '0.5rem' }}>Outcome Narrative</h3>
            <p style={{ fontSize: '1rem', lineHeight: '1.5', opacity: 0.9 }}>
-             The data confirms that while subjective pain fluctuates, Benchmark is successfully tracking objective physical capacity increases across Strength and ROM domains.
+             The data confirms that Benchmark is successfully tracking objective physical capacity increases and subjective patient recovery across all core domains.
            </p>
         </div>
       </div>
