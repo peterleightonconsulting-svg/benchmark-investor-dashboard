@@ -177,7 +177,7 @@ export default function App() {
             <h3 style={{ margin: 0 }}>Patient Reported Outcomes (PROMs)</h3>
           </div>
           <p style={{ color: '#6b7280', fontSize: '0.875rem', marginBottom: '1.5rem' }}>
-            Based on {outcomes.proms.patients} patients with multiple symptom reports.
+            <strong>Rule Applied:</strong> Only including patients with a 6wk to 5mo timeline. ({outcomes.proms.patients} patients)
           </p>
           
           <div style={{ display: 'flex', gap: '1rem' }}>
@@ -207,20 +207,20 @@ export default function App() {
         <div className="chart-card" style={{ gridColumn: '1 / -1' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
             <TrendingUp size={20} color="#4f46e5" />
-            <h3 style={{ margin: 0 }}>Physical Capacity Improvements</h3>
+            <h3 style={{ margin: 0 }}>Physical Capacity Improvement Rates</h3>
           </div>
           <p style={{ color: '#6b7280', fontSize: '0.875rem', marginBottom: '1rem' }}>
-            Average increase in capacity (First vs. Last test). Filtered to tests with 5+ longitudinal patients.
+            <strong>Metric:</strong> Avg increase <strong>per week</strong>. Reclassified by <strong>Injured</strong> vs <strong>Uninjured</strong> limb.
           </p>
           <div style={{ overflowX: 'auto' }}>
             <table className="improvements-table">
               <thead>
                 <tr>
-                  <th>Test Name</th>
+                  <th>Test Name (incl. Body Part)</th>
                   <th>Category</th>
                   <th>Patients</th>
-                  <th>Avg Change (Left)</th>
-                  <th>Avg Change (Right)</th>
+                  <th>Injured (Rate/Wk)</th>
+                  <th>Uninjured (Rate/Wk)</th>
                 </tr>
               </thead>
               <tbody>
@@ -229,8 +229,8 @@ export default function App() {
                     <td><strong>{test.testName}</strong></td>
                     <td>{test.category}</td>
                     <td>{test.patients}</td>
-                    <td>{renderChange(test.leftAvg)}</td>
-                    <td>{renderChange(test.rightAvg)}</td>
+                    <td>{renderChange(test.injuredAvg)}</td>
+                    <td>{renderChange(test.uninjuredAvg)}</td>
                   </tr>
                 ))}
               </tbody>

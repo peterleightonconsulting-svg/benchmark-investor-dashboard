@@ -8,6 +8,11 @@ app.use(cors());
 
 const port = process.env.PORT || 3001;
 
+// Helper to calculate weeks between dates
+function getWeeksBetween(d1, d2) {
+  return Math.abs(d2 - d1) / (1000 * 60 * 60 * 24 * 7);
+}
+
 // API Route
 app.get('/api/stats', async (req, res) => {
   let connection;
@@ -18,9 +23,7 @@ app.get('/api/stats', async (req, res) => {
       user: process.env.DB_USER || 'benchmark2026',
       password: process.env.DB_PASSWORD || 'Benchmark941!!',
       database: process.env.DB_NAME || 'benchmark-mysql',
-      ssl: {
-        rejectUnauthorized: false
-      }
+      ssl: process.env.DB_HOST ? { rejectUnauthorized: false } : null
     });
 
     async function queryVal(sql) {
@@ -50,34 +53,84 @@ app.get('/api/stats', async (req, res) => {
     const patientsWithMultipleSessions = longitudinalData[0].count;
     const longitudinalPct = totalPatients > 0 ? ((patientsWithMultipleSessions / totalPatients) * 100).toFixed(1) : 0;
 
-    const [testRecords] = await connection.query("SELECT pts.patient_id, pts.test_date, ptr.test_id, tl.name AS test_name, tc.name AS category_name, ptr.left, ptr.right, ptr.no_laterality FROM patient_test_records ptr JOIN patient_test_sessions pts ON ptr.patient_test_session_id = pts.id JOIN test_list tl ON ptr.test_id = tl.id JOIN test_category tc ON tl.test_category_id = tc.id ORDER BY pts.patient_id, ptr.test_id, pts.test_date ASC");
+    // --- Updated Physical Improvements Logic ---
+    const [testRecords] = await connection.query(`
+      SELECT 
+        pts.patient_id, pts.test_date, ptr.test_id, 
+        tl.name AS test_name, tc.name AS category_name, bp.name AS body_part_name,
+        ptr.left, ptr.right, ptr.no_laterality,
+        i.injured_limb
+      FROM patient_test_records ptr
+      JOIN patient_test_sessions pts ON ptr.patient_test_session_id = pts.id
+      JOIN test_list tl ON ptr.test_id = tl.id
+      JOIN test_category tc ON tl.test_category_id = tc.id
+      LEFT JOIN body_parts bp ON tl.body_part_id = bp.id
+      LEFT JOIN injury i ON pts.patient_id = i.patient_id
+      ORDER BY pts.patient_id, ptr.test_id, pts.test_date ASC
+    `);
+
     const patientTests = {};
     for (const row of testRecords) {
+      const fullTestName = (row.body_part_name ? row.body_part_name + " " : "") + row.test_name;
       const key = row.patient_id + "_" + row.test_id;
-      if (!patientTests[key]) patientTests[key] = { test_name: row.test_name, category: row.category_name, records: [] };
+      if (!patientTests[key]) patientTests[key] = { test_name: fullTestName, category: row.category_name, records: [], injured_limb: row.injured_limb };
       patientTests[key].records.push(row);
     }
+
     const testImprovements = {};
     for (const key in patientTests) {
       const data = patientTests[key];
       if (data.records.length > 1) {
         const first = data.records[0];
         const last = data.records[data.records.length - 1];
-        if (!testImprovements[data.test_name]) testImprovements[data.test_name] = { category: data.category, leftChanges: [], rightChanges: [], noLatChanges: [] };
-        if (first.left !== null && last.left !== null) testImprovements[data.test_name].leftChanges.push(last.left - first.left);
-        if (first.right !== null && last.right !== null) testImprovements[data.test_name].rightChanges.push(last.right - first.right);
-        if (first.no_laterality !== null && last.no_laterality !== null) testImprovements[data.test_name].noLatChanges.push(last.no_laterality - first.no_laterality);
+        const weeks = getWeeksBetween(new Date(first.test_date), new Date(last.test_date)) || 1;
+        
+        if (!testImprovements[data.test_name]) {
+          testImprovements[data.test_name] = { category: data.category, injuredChanges: [], uninjuredChanges: [], noLatChanges: [] };
+        }
+
+        // Reclassify Left/Right based on Injured Limb
+        const injured = (data.injured_limb || "").toLowerCase();
+        
+        // Handle Left Side
+        if (first.left !== null && last.left !== null) {
+          const changePerWeek = (last.left - first.left) / weeks;
+          if (injured.includes("left")) testImprovements[data.test_name].injuredChanges.push(changePerWeek);
+          else if (injured.includes("right")) testImprovements[data.test_name].uninjuredChanges.push(changePerWeek);
+        }
+
+        // Handle Right Side
+        if (first.right !== null && last.right !== null) {
+          const changePerWeek = (last.right - first.right) / weeks;
+          if (injured.includes("right")) testImprovements[data.test_name].injuredChanges.push(changePerWeek);
+          else if (injured.includes("left")) testImprovements[data.test_name].uninjuredChanges.push(changePerWeek);
+        }
+
+        if (first.no_laterality !== null && last.no_laterality !== null) {
+          testImprovements[data.test_name].noLatChanges.push((last.no_laterality - first.no_laterality) / weeks);
+        }
       }
     }
+
     const improvementsData = [];
     for (const testName in testImprovements) {
       const data = testImprovements[testName];
       const avg = (arr) => arr.length ? (arr.reduce((a, b) => a + b, 0) / arr.length).toFixed(2) : null;
-      const n = Math.max(data.leftChanges.length, data.rightChanges.length, data.noLatChanges.length);
-      if (n >= 5) improvementsData.push({ testName, category: data.category, patients: n, leftAvg: avg(data.leftChanges), rightAvg: avg(data.rightChanges), noLatAvg: avg(data.noLatChanges) });
+      const n = Math.max(data.injuredChanges.length, data.uninjuredChanges.length, data.noLatChanges.length);
+      if (n >= 1) { // Showing all for now to verify logic
+        improvementsData.push({
+          testName,
+          category: data.category,
+          patients: n,
+          injuredAvg: avg(data.injuredChanges),
+          uninjuredAvg: avg(data.uninjuredChanges),
+          noLatAvg: avg(data.noLatChanges)
+        });
+      }
     }
     improvementsData.sort((a, b) => b.patients - a.patients);
 
+    // --- Updated PROMs Logic (6wk to 5mo filter) ---
     const [promsRecords] = await connection.query("SELECT patient_id, created_at, pain_intensity, activity_rating FROM patient_symptoms_form ORDER BY patient_id, created_at ASC");
     const patientProms = {};
     for (const row of promsRecords) {
@@ -91,11 +144,21 @@ app.get('/api/stats', async (req, res) => {
       if (records.length > 1) {
         const first = records[0];
         const last = records[records.length - 1];
-        if (first.pain_intensity !== null && last.pain_intensity !== null) painChanges.push(last.pain_intensity - first.pain_intensity);
-        if (first.activity_rating !== null && last.activity_rating !== null) activityChanges.push(last.activity_rating - first.activity_rating);
+        const weeks = getWeeksBetween(new Date(first.created_at), new Date(last.created_at));
+        
+        // Applying the rule: 6 weeks to 5 months (approx 21.7 weeks)
+        if (weeks >= 6 && weeks <= 21.7) {
+          if (first.pain_intensity !== null && last.pain_intensity !== null) painChanges.push(last.pain_intensity - first.pain_intensity);
+          if (first.activity_rating !== null && last.activity_rating !== null) activityChanges.push(last.activity_rating - first.activity_rating);
+        }
       }
     }
-    const promsData = { patients: Math.max(painChanges.length, activityChanges.length), painChange: painChanges.length ? (painChanges.reduce((a, b) => a + b, 0) / painChanges.length).toFixed(2) : 0, activityChange: activityChanges.length ? (activityChanges.reduce((a, b) => a + b, 0) / activityChanges.length).toFixed(2) : 0 };
+
+    const promsData = {
+      patients: Math.max(painChanges.length, activityChanges.length),
+      painChange: painChanges.length ? (painChanges.reduce((a, b) => a + b, 0) / painChanges.length).toFixed(2) : 0,
+      activityChange: activityChanges.length ? (activityChanges.reduce((a, b) => a + b, 0) / activityChanges.length).toFixed(2) : 0
+    };
 
     res.json({
       metrics: { totalSignups, activeCliniciansCount, wau, mau, conversionRate, arpu, avgSessionsPerClinician, avgPatientsPerClinician, longitudinalPct },
@@ -110,15 +173,8 @@ app.get('/api/stats', async (req, res) => {
   }
 });
 
-// Serve static files from the React app
 const distPath = path.join(__dirname, '..', 'ui', 'dist');
 app.use(express.static(distPath));
+app.use((req, res) => { res.sendFile(path.join(distPath, 'index.html')); });
 
-// The "catchall" handler: for any request that doesn't match one above, send back React's index.html file.
-app.use((req, res) => {
-  res.sendFile(path.join(distPath, 'index.html'));
-});
-
-app.listen(port, () => {
-  console.log(`Server is running on port ${port}`);
-});
+app.listen(port, () => { console.log(`Server is running on port ${port}`); });
