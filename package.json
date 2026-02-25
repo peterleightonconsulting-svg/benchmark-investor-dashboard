@@ -5,8 +5,7 @@
     "node": ">=20.0.0"
   },
   "scripts": {
-    "install-all": "npm install --prefix api && npm install --prefix ui",
-    "build": "npm run install-all && npm run build --prefix ui",
+    "build": "cd api && npm install && cd ../ui && npm install && npm run build",
     "start": "node api/server.js"
   }
 }
