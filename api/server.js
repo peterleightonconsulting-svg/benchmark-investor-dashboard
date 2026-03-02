@@ -214,7 +214,7 @@ app.get('/api/stats', async (req, res) => {
     };
 
     res.json({
-      metrics: { totalSignups, activeCliniciansCount, wau, mau, conversionRate, arpu, currentMonthRev, revChangePct, avgSessionsPerClinician, avgPatientsPerClinician, longitudinalPct },
+      metrics: { totalSignups, activeCliniciansCount, totalPatients, wau, mau, conversionRate, arpu, currentMonthRev, revChangePct, avgSessionsPerClinician, avgPatientsPerClinician, longitudinalPct },
       charts: { userGrowth: userGrowth.reverse(), testDomains: testTypes },
       outcomes: { tests: improvementsData, proms: promsData }
     });

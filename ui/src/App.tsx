@@ -75,6 +75,15 @@ export default function App() {
             <div className="metric-subtitle">Recorded at least one test</div>
           </div>
         </div>
+
+        <div className="metric-card">
+          <div className="metric-icon"><Users size={24} /></div>
+          <div className="metric-content">
+            <h3>Total Patients</h3>
+            <div className="metric-value">{metrics.totalPatients}</div>
+            <div className="metric-subtitle">Across all active clinicians</div>
+          </div>
+        </div>
         
         <div className="metric-card">
           <div className="metric-icon"><Activity size={24} /></div>
@@ -119,7 +128,7 @@ export default function App() {
           <div className="metric-content">
             <h3>Sessions / Clinician</h3>
             <div className="metric-value">{metrics.avgSessionsPerClinician}</div>
-            <div className="metric-subtitle">{metrics.avgPatientsPerClinician} Patients / Clinician</div>
+            <div className="metric-subtitle">{metrics.avgPatientsPerClinician} Patients Avg</div>
           </div>
         </div>
       </div>
