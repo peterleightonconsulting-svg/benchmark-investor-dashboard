@@ -2,11 +2,104 @@ const express = require('express');
 const cors = require('cors');
 const mysql = require('mysql2/promise');
 const path = require('path');
+const { GoogleGenAI } = require('@google/genai');
 
 const app = express();
 app.use(cors());
 
 const port = process.env.PORT || 3001;
+
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+
+// Database Schema Context for the AI
+const schemaContext = `
+You are a read-only database assistant for the Benchmark clinical platform.
+Your job is to translate user questions into valid MySQL queries, run them, and summarize the results.
+
+Here is the database schema:
+- users (id, first_name, last_name, email, is_practitioner, subscribed_status, s_transactionId, is_test_account)
+- patients (id, doctor_id, first_name, last_name, gender, activity_level)
+- patient_test_sessions (id, patient_id, test_date, created_at)
+- patient_test_records (id, patient_test_session_id, test_id, left, right, no_laterality)
+- test_list (id, name, test_category_id, body_part_id)
+- test_category (id, name)
+- body_parts (id, name)
+- transactions (id, user_id, amount, status, created_at)
+- patient_symptoms_form (id, patient_id, created_at, pain_intensity, activity_rating)
+
+CRITICAL RULES:
+1. You must ONLY output a valid SQL SELECT query in your first response block wrapped in \`\`\`sql ... \`\`\` tags.
+2. NEVER write UPDATE, DELETE, INSERT, DROP, or ALTER queries.
+3. Always exclude test accounts by adding 'is_test_account = 0 AND email NOT LIKE "%@benchmarkps.org"' when querying the users table.
+4. Try to join tables to give human-readable names (like joining patients to users to get the doctor's name).
+`;
+
+// AI Chat Route
+app.post('/api/chat', express.json(), async (req, res) => {
+  let connection;
+  try {
+    const userQuestion = req.body.question;
+    if (!userQuestion) return res.status(400).json({ error: "Question is required" });
+
+    // Step 1: Ask Gemini to generate the SQL query
+    const prompt = `${schemaContext}\n\nUser Question: "${userQuestion}"\nGenerate the MySQL SELECT query:`;
+    const sqlResponse = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: prompt
+    });
+    
+    let generatedSQL = sqlResponse.text;
+    
+    // Extract SQL from markdown blocks if present
+    const sqlMatch = generatedSQL.match(/```sql\n([\s\S]*?)\n```/);
+    if (sqlMatch) generatedSQL = sqlMatch[1].trim();
+    else generatedSQL = generatedSQL.trim();
+
+    // Security Check: Ensure it's a read-only SELECT query
+    if (!generatedSQL.toLowerCase().startsWith('select')) {
+      return res.status(400).json({ error: "Only SELECT queries are allowed for security reasons.", generatedSQL });
+    }
+    if (/(update|delete|insert|drop|alter|truncate|replace)/i.test(generatedSQL)) {
+      return res.status(400).json({ error: "Malicious query detected. Only read operations are permitted." });
+    }
+
+    // Step 2: Execute the Query
+    connection = await mysql.createConnection({
+      host: process.env.DB_HOST || '127.0.0.1',
+      port: process.env.DB_PORT || 3307,
+      user: process.env.DB_USER || 'benchmark2026',
+      password: process.env.DB_PASSWORD || 'Benchmark941!!',
+      database: process.env.DB_NAME || 'benchmark-mysql',
+      ssl: process.env.DB_HOST ? { rejectUnauthorized: false } : null
+    });
+
+    const [rows] = await connection.query(generatedSQL);
+
+    // Step 3: Ask Gemini to summarize the results
+    const summaryPrompt = `
+      The user asked: "${userQuestion}"
+      The database returned this JSON result: ${JSON.stringify(rows).substring(0, 2000)}
+      Please provide a friendly, concise, natural language answer to the user's question based on this data.
+    `;
+    
+    const summaryResponse = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: summaryPrompt
+    });
+
+    res.json({
+      answer: summaryResponse.text,
+      sql: generatedSQL,
+      rawData: rows
+    });
+
+  } catch (error) {
+    console.error("Chat API Error:", error);
+    res.status(500).json({ error: error.message, details: "The AI might have generated an invalid SQL query or the database connection failed." });
+  } finally {
+    if (connection) await connection.end();
+  }
+});
 
 // Helper to calculate weeks between dates
 function getWeeksBetween(d1, d2) {

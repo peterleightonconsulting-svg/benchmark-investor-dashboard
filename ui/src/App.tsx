@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { Activity, Users, DollarSign, Target, ActivitySquare, CalendarDays, TrendingUp, HeartPulse, RefreshCw } from 'lucide-react';
+import { Activity, Users, DollarSign, Target, ActivitySquare, CalendarDays, TrendingUp, HeartPulse, RefreshCw, MessageSquare, X, Send } from 'lucide-react';
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
 
@@ -8,6 +8,41 @@ export default function App() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<string>('');
+  
+  // Chatbot State
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [chatInput, setChatInput] = useState('');
+  const [chatHistory, setChatHistory] = useState<{role: 'user' | 'ai', text: string}[]>([]);
+  const [isChatLoading, setIsChatLoading] = useState(false);
+
+  const handleChatSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!chatInput.trim()) return;
+
+    const question = chatInput.trim();
+    setChatInput('');
+    setChatHistory(prev => [...prev, { role: 'user', text: question }]);
+    setIsChatLoading(true);
+
+    try {
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question })
+      });
+      const result = await response.json();
+      
+      if (result.error) {
+        setChatHistory(prev => [...prev, { role: 'ai', text: `Error: ${result.error}` }]);
+      } else {
+        setChatHistory(prev => [...prev, { role: 'ai', text: result.answer }]);
+      }
+    } catch (err) {
+      setChatHistory(prev => [...prev, { role: 'ai', text: 'Sorry, I lost connection to the server.' }]);
+    } finally {
+      setIsChatLoading(false);
+    }
+  };
 
   useEffect(() => {
     const fetchData = () => {
@@ -252,6 +287,59 @@ export default function App() {
           </div>
         </div>
       </div>
+
+      {/* Floating Chat Button */}
+      <button 
+        onClick={() => setIsChatOpen(true)}
+        style={{ position: 'fixed', bottom: '2rem', right: '2rem', background: '#4f46e5', color: 'white', border: 'none', borderRadius: '50%', width: '60px', height: '60px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', zIndex: 1000 }}
+        title="Ask Benchmark AI"
+      >
+        <MessageSquare size={28} />
+      </button>
+
+      {/* Chat Window Modal */}
+      {isChatOpen && (
+        <div style={{ position: 'fixed', bottom: '5rem', right: '2rem', width: '350px', height: '500px', background: 'white', borderRadius: '1rem', boxShadow: '0 10px 25px rgba(0,0,0,0.2)', display: 'flex', flexDirection: 'column', zIndex: 1001, overflow: 'hidden' }}>
+          <div style={{ background: '#4f46e5', color: 'white', padding: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h3 style={{ margin: 0, fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}><MessageSquare size={18} /> Benchmark AI</h3>
+            <button onClick={() => setIsChatOpen(false)} style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer' }}><X size={20} /></button>
+          </div>
+          
+          <div style={{ flex: 1, padding: '1rem', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '1rem', background: '#f9fafb' }}>
+            {chatHistory.length === 0 && (
+              <p style={{ textAlign: 'center', color: '#6b7280', fontSize: '0.875rem', marginTop: '2rem' }}>
+                Ask me a question about your database! For example: <br/><br/>
+                <em>"How many patients does Gus have?"</em><br/>
+                <em>"What is the average pain intensity?"</em>
+              </p>
+            )}
+            {chatHistory.map((msg, i) => (
+              <div key={i} style={{ alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start', background: msg.role === 'user' ? '#4f46e5' : '#e5e7eb', color: msg.role === 'user' ? 'white' : '#111827', padding: '0.75rem 1rem', borderRadius: '1rem', maxWidth: '85%', fontSize: '0.875rem', lineHeight: '1.4' }}>
+                {msg.text}
+              </div>
+            ))}
+            {isChatLoading && (
+              <div style={{ alignSelf: 'flex-start', background: '#e5e7eb', padding: '0.75rem 1rem', borderRadius: '1rem', fontSize: '0.875rem' }}>
+                <span className="spin-icon" style={{display: 'inline-block'}}>⏳</span> Thinking...
+              </div>
+            )}
+          </div>
+
+          <form onSubmit={handleChatSubmit} style={{ display: 'flex', borderTop: '1px solid #e5e7eb', padding: '0.5rem' }}>
+            <input 
+              type="text" 
+              value={chatInput}
+              onChange={(e) => setChatInput(e.target.value)}
+              placeholder="Ask a question..." 
+              style={{ flex: 1, padding: '0.5rem', border: 'none', outline: 'none', fontSize: '0.875rem' }}
+            />
+            <button type="submit" disabled={isChatLoading || !chatInput.trim()} style={{ background: '#4f46e5', color: 'white', border: 'none', padding: '0.5rem', borderRadius: '0.5rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Send size={18} />
+            </button>
+          </form>
+        </div>
+      )}
+
     </div>
   );
 }
