@@ -31,13 +31,16 @@ app.get('/api/stats', async (req, res) => {
       return rows[0] ? Object.values(rows[0])[0] : 0;
     }
 
-    // Adoption & Growth (Excluding test accounts)
-    const totalSignups = await queryVal("SELECT COUNT(*) FROM users WHERE is_test_account = 0");
-    const activeCliniciansCount = await queryVal("SELECT COUNT(DISTINCT patients.doctor_id) FROM patient_test_sessions JOIN patients ON patient_test_sessions.patient_id = patients.id JOIN users ON patients.doctor_id = users.id WHERE users.is_test_account = 0");
-    const paidClinicians = await queryVal("SELECT COUNT(*) FROM users WHERE (subscribed_status = 1 OR s_transactionId IS NOT NULL) AND is_test_account = 0");
-    const wau = await queryVal("SELECT COUNT(DISTINCT patients.doctor_id) FROM patient_test_sessions JOIN patients ON patient_test_sessions.patient_id = patients.id JOIN users ON patients.doctor_id = users.id WHERE patient_test_sessions.created_at >= NOW() - INTERVAL 7 DAY AND users.is_test_account = 0");
-    const mau = await queryVal("SELECT COUNT(DISTINCT patients.doctor_id) FROM patient_test_sessions JOIN patients ON patient_test_sessions.patient_id = patients.id JOIN users ON patients.doctor_id = users.id WHERE patient_test_sessions.created_at >= NOW() - INTERVAL 30 DAY AND users.is_test_account = 0");
-    const [userGrowth] = await connection.query("SELECT DATE_FORMAT(created_at, '%Y-%m') as month, COUNT(*) as count FROM users WHERE is_test_account = 0 GROUP BY month ORDER BY month DESC LIMIT 6");
+    // Exclusion condition reused across queries
+    const excludeCondition = "users.is_test_account = 0 AND users.email NOT LIKE '%@benchmarkps.org'";
+
+    // Adoption & Growth (Excluding test accounts and staff)
+    const totalSignups = await queryVal(`SELECT COUNT(*) FROM users WHERE is_test_account = 0 AND email NOT LIKE '%@benchmarkps.org'`);
+    const activeCliniciansCount = await queryVal(`SELECT COUNT(DISTINCT patients.doctor_id) FROM patient_test_sessions JOIN patients ON patient_test_sessions.patient_id = patients.id JOIN users ON patients.doctor_id = users.id WHERE ${excludeCondition}`);
+    const paidClinicians = await queryVal(`SELECT COUNT(*) FROM users WHERE (subscribed_status = 1 OR s_transactionId IS NOT NULL) AND is_test_account = 0 AND email NOT LIKE '%@benchmarkps.org'`);
+    const wau = await queryVal(`SELECT COUNT(DISTINCT patients.doctor_id) FROM patient_test_sessions JOIN patients ON patient_test_sessions.patient_id = patients.id JOIN users ON patients.doctor_id = users.id WHERE patient_test_sessions.created_at >= NOW() - INTERVAL 7 DAY AND ${excludeCondition}`);
+    const mau = await queryVal(`SELECT COUNT(DISTINCT patients.doctor_id) FROM patient_test_sessions JOIN patients ON patient_test_sessions.patient_id = patients.id JOIN users ON patients.doctor_id = users.id WHERE patient_test_sessions.created_at >= NOW() - INTERVAL 30 DAY AND ${excludeCondition}`);
+    const [userGrowth] = await connection.query(`SELECT DATE_FORMAT(created_at, '%Y-%m') as month, COUNT(*) as count FROM users WHERE is_test_account = 0 AND email NOT LIKE '%@benchmarkps.org' GROUP BY month ORDER BY month DESC LIMIT 6`);
 
     const conversionRate = activeCliniciansCount > 0 ? ((paidClinicians / activeCliniciansCount) * 100).toFixed(2) : 0;
     
@@ -61,14 +64,14 @@ app.get('/api/stats', async (req, res) => {
     }
 
     // Usage & Engagement (Excluding test accounts via doctor_id)
-    const totalSessions = await queryVal("SELECT COUNT(*) FROM patient_test_sessions JOIN patients ON patient_test_sessions.patient_id = patients.id JOIN users ON patients.doctor_id = users.id WHERE users.is_test_account = 0");
-    const totalPatients = await queryVal("SELECT COUNT(*) FROM patients JOIN users ON patients.doctor_id = users.id WHERE users.is_test_account = 0");
+    const totalSessions = await queryVal(`SELECT COUNT(*) FROM patient_test_sessions JOIN patients ON patient_test_sessions.patient_id = patients.id JOIN users ON patients.doctor_id = users.id WHERE ${excludeCondition}`);
+    const totalPatients = await queryVal(`SELECT COUNT(*) FROM patients JOIN users ON patients.doctor_id = users.id WHERE ${excludeCondition}`);
     const avgSessionsPerClinician = activeCliniciansCount > 0 ? (totalSessions / activeCliniciansCount).toFixed(2) : 0;
     const avgPatientsPerClinician = activeCliniciansCount > 0 ? (totalPatients / activeCliniciansCount).toFixed(2) : 0;
 
-    const [testTypes] = await connection.query("SELECT tc.name as name, COUNT(ptr.id) as value FROM patient_test_records ptr JOIN test_list tl ON ptr.test_id = tl.id JOIN test_category tc ON tl.test_category_id = tc.id JOIN patient_test_sessions pts ON ptr.patient_test_session_id = pts.id JOIN patients p ON pts.patient_id = p.id JOIN users u ON p.doctor_id = u.id WHERE u.is_test_account = 0 GROUP BY tc.name");
+    const [testTypes] = await connection.query(`SELECT tc.name as name, COUNT(ptr.id) as value FROM patient_test_records ptr JOIN test_list tl ON ptr.test_id = tl.id JOIN test_category tc ON tl.test_category_id = tc.id JOIN patient_test_sessions pts ON ptr.patient_test_session_id = pts.id JOIN patients p ON pts.patient_id = p.id JOIN users u ON p.doctor_id = u.id WHERE u.is_test_account = 0 AND u.email NOT LIKE '%@benchmarkps.org' GROUP BY tc.name`);
 
-    const [longitudinalData] = await connection.query("SELECT COUNT(*) as count FROM (SELECT pts.patient_id, COUNT(*) as sessions FROM patient_test_sessions pts JOIN patients p ON pts.patient_id = p.id JOIN users u ON p.doctor_id = u.id WHERE u.is_test_account = 0 GROUP BY pts.patient_id HAVING sessions >= 2) as sub");
+    const [longitudinalData] = await connection.query(`SELECT COUNT(*) as count FROM (SELECT pts.patient_id, COUNT(*) as sessions FROM patient_test_sessions pts JOIN patients p ON pts.patient_id = p.id JOIN users u ON p.doctor_id = u.id WHERE u.is_test_account = 0 AND u.email NOT LIKE '%@benchmarkps.org' GROUP BY pts.patient_id HAVING sessions >= 2) as sub`);
     const patientsWithMultipleSessions = longitudinalData[0].count;
     const longitudinalPct = totalPatients > 0 ? ((patientsWithMultipleSessions / totalPatients) * 100).toFixed(1) : 0;
 
@@ -87,7 +90,7 @@ app.get('/api/stats', async (req, res) => {
       JOIN test_category tc ON tl.test_category_id = tc.id
       LEFT JOIN body_parts bp ON tl.body_part_id = bp.id
       LEFT JOIN injury i ON pts.patient_id = i.patient_id
-      WHERE u.is_test_account = 0
+      WHERE u.is_test_account = 0 AND u.email NOT LIKE '%@benchmarkps.org'
       ORDER BY pts.patient_id, ptr.test_id, pts.test_date ASC
     `);
 
@@ -158,7 +161,7 @@ app.get('/api/stats', async (req, res) => {
       FROM patient_symptoms_form psf
       JOIN patients p ON psf.patient_id = p.id
       JOIN users u ON p.doctor_id = u.id
-      WHERE u.is_test_account = 0
+      WHERE u.is_test_account = 0 AND u.email NOT LIKE '%@benchmarkps.org'
       ORDER BY psf.patient_id, psf.created_at ASC
     `);
     const patientProms = {};
