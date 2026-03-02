@@ -181,6 +181,24 @@ app.get('/api/stats', async (req, res) => {
       medianTTV = ttvDays.length % 2 !== 0 ? ttvDays[mid] : (ttvDays[mid - 1] + ttvDays[mid]) / 2;
     }
 
+    // Time-To-Paid (Median days from signup to first payment)
+    const [ttpRows] = await connection.query(`
+      SELECT 
+        u.id, 
+        MIN(DATEDIFF(t.created_at, u.created_at)) as days_to_paid
+      FROM users u
+      JOIN transactions t ON u.id = t.user_id
+      WHERE u.is_test_account = 0 AND u.email NOT LIKE '%@benchmarkps.org'
+      GROUP BY u.id
+    `);
+    
+    let ttpDays = ttpRows.map(r => r.days_to_paid).filter(d => d >= 0).sort((a, b) => a - b);
+    let medianTTP = 0;
+    if (ttpDays.length > 0) {
+      const mid = Math.floor(ttpDays.length / 2);
+      medianTTP = ttpDays.length % 2 !== 0 ? ttpDays[mid] : (ttpDays[mid - 1] + ttpDays[mid]) / 2;
+    }
+
     const [testTypes] = await connection.query(`SELECT tc.name as name, COUNT(ptr.id) as value FROM patient_test_records ptr JOIN test_list tl ON ptr.test_id = tl.id JOIN test_category tc ON tl.test_category_id = tc.id JOIN patient_test_sessions pts ON ptr.patient_test_session_id = pts.id JOIN patients p ON pts.patient_id = p.id JOIN users u ON p.doctor_id = u.id WHERE u.is_test_account = 0 AND u.email NOT LIKE '%@benchmarkps.org' GROUP BY tc.name`);
 
     const [longitudinalData] = await connection.query(`SELECT COUNT(*) as count FROM (SELECT pts.patient_id, COUNT(*) as sessions FROM patient_test_sessions pts JOIN patients p ON pts.patient_id = p.id JOIN users u ON p.doctor_id = u.id WHERE u.is_test_account = 0 AND u.email NOT LIKE '%@benchmarkps.org' GROUP BY pts.patient_id HAVING sessions >= 2) as sub`);
@@ -326,7 +344,7 @@ app.get('/api/stats', async (req, res) => {
     };
 
     res.json({
-      metrics: { totalSignups, activeCliniciansCount, totalPatients, wau, mau, conversionRate, arpu, currentMonthRev, revChangePct, avgSessionsPerClinician, avgPatientsPerClinician, longitudinalPct, medianTTV },
+      metrics: { totalSignups, activeCliniciansCount, totalPatients, wau, mau, conversionRate, arpu, currentMonthRev, revChangePct, avgSessionsPerClinician, avgPatientsPerClinician, longitudinalPct, medianTTV, medianTTP },
       charts: { userGrowth: userGrowth.reverse(), testDomains: testTypes },
       outcomes: { tests: improvementsData, proms: promsData }
     });

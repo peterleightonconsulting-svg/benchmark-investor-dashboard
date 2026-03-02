@@ -170,9 +170,18 @@ export default function App() {
         <div className="metric-card">
           <div className="metric-icon"><Zap size={24} /></div>
           <div className="metric-content">
-            <h3>Time to Value (TTV)</h3>
+            <h3>Time to Test</h3>
             <div className="metric-value">{metrics.medianTTV} Days</div>
             <div className="metric-subtitle">Median time to first test</div>
+          </div>
+        </div>
+
+        <div className="metric-card">
+          <div className="metric-icon"><DollarSign size={24} /></div>
+          <div className="metric-content">
+            <h3>Time to Paid</h3>
+            <div className="metric-value">{metrics.medianTTP} Days</div>
+            <div className="metric-subtitle">Median time to payment</div>
           </div>
         </div>
       </div>
