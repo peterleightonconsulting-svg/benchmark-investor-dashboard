@@ -288,7 +288,13 @@ export default function App() {
       </div>
       
       <div style={{ marginTop: '0.5rem', marginBottom: '2.5rem', fontSize: '0.875rem', color: '#6b7280', padding: '1rem', background: '#f9fafb', borderRadius: '0.5rem', border: '1px solid #e5e7eb' }}>
-        <strong>*Economic Rationale:</strong> Industry research indicates that data-driven MSK physiotherapy interventions (tracked via PROMs) reduce the 90-day utilization of expensive downstream interventions like MRI imaging, injections, and surgical consultations. Reductions in average visit counts for resolving symptoms yield a documented savings of <strong>$193 to $1,411 per patient</strong>. Benchmark’s ability to prove physical capacity increases and pain reduction positions it as a key cost-containment tool for value-based care providers.
+        <p style={{ marginBottom: '0.5rem' }}><strong>*Economic Rationale:</strong> Industry research indicates that data-driven MSK physiotherapy interventions (tracked via PROMs) reduce the 90-day utilization of expensive downstream interventions like MRI imaging, injections, and surgical consultations. Reductions in average visit counts for resolving symptoms yield a documented savings of <strong>$193 to $1,411 per patient</strong>. Benchmark’s ability to prove physical capacity increases and pain reduction positions it as a key cost-containment tool for value-based care providers.</p>
+        <p style={{ fontSize: '0.75rem', color: '#9ca3af', borderTop: '1px solid #e5e7eb', paddingTop: '0.5rem', marginTop: '0.5rem' }}>
+          <em>Sources: 
+          1. "Cost-effectiveness of tele-physical therapy for musculoskeletal conditions" (NIH/JMIR Formative Research, 2021) - Savings of $193-$1411 per injury.
+          2. "The impact of patient-reported outcome measures in virtual Integrated Practice Units" (Scholastica, 2022) - Reduction in 90-day imaging/injection utilization.
+          </em>
+        </p>
       </div>
 
       <div className="charts-grid">
