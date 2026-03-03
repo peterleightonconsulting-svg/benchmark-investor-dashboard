@@ -1,0 +1,30 @@
+name: send-weekly-report
+on:
+  schedule:
+    - cron: '0 9 * * 1' # Every Monday at 9:00 AM UTC
+  workflow_dispatch: # Allows manual triggering
+
+jobs:
+  send-report:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install dependencies
+        run: |
+          cd benchmark-dashboard
+          npm install
+      - name: Run report script
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          COFOUNDER_EMAILS: ${{ secrets.COFOUNDER_EMAILS }}
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_PORT: ${{ secrets.DB_PORT }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+        run: |
+          cd benchmark-dashboard
+          node scripts/send_weekly_report.js
