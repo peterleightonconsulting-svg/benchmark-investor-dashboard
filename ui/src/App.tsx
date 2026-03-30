@@ -234,7 +234,7 @@ export default function App() {
             <h3 style={{ margin: 0 }}>Patient Reported Outcomes (PROMs)</h3>
           </div>
           <p style={{ color: '#6b7280', fontSize: '0.875rem', marginBottom: '1.5rem' }}>
-            <strong>Rule Applied:</strong> Only including patients with a 6wk to 5mo timeline. ({outcomes.proms.patients} patients)
+            <strong>Rule Applied:</strong> Only including patients with a minimum 3 days timeline. ({outcomes.proms.patients} patients)
           </p>
           
           <div style={{ display: 'flex', gap: '1rem' }}>

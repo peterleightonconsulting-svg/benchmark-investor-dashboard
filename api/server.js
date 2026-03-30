@@ -285,7 +285,7 @@ app.get('/api/stats', async (req, res) => {
     }
     improvementsData.sort((a, b) => b.patients - a.patients);
 
-    // --- Updated PROMs Logic (6wk to 5mo filter) ---
+    // --- Updated PROMs Logic (Min 3 days filter) ---
     const [promsRecords] = await connection.query(`
       SELECT psf.patient_id, psf.created_at, psf.pain_intensity, psf.activity_rating 
       FROM patient_symptoms_form psf
@@ -306,10 +306,12 @@ app.get('/api/stats', async (req, res) => {
       if (records.length > 1) {
         const first = records[0];
         const last = records[records.length - 1];
-        const weeks = getWeeksBetween(new Date(first.created_at), new Date(last.created_at));
         
-        // Applying the rule: 6 weeks to 5 months (approx 21.7 weeks)
-        if (weeks >= 6 && weeks <= 21.7) {
+        // Calculate days difference
+        const daysDiff = (new Date(last.created_at).getTime() - new Date(first.created_at).getTime()) / (1000 * 60 * 60 * 24);
+        
+        // Applying the rule: At least 3 days apart
+        if (daysDiff >= 3) {
           if (first.pain_intensity !== null && last.pain_intensity !== null) {
             painChanges.push(last.pain_intensity - first.pain_intensity);
           }
