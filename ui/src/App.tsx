@@ -6,6 +6,7 @@ const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
 
 export default function App() {
   const [data, setData] = useState<any>(null);
+  const [physioMetrics, setPhysioMetrics] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<string>('');
   const [physios, setPhysios] = useState<any[]>([]);
@@ -49,7 +50,15 @@ export default function App() {
   useEffect(() => {
     fetch('/api/physios')
       .then(res => res.json())
-      .then(res => setPhysios(res))
+      .then(res => {
+        // Sort for dropdown (alphabetical)
+        const sortedForDropdown = [...res].sort((a, b) => a.first_name.localeCompare(b.first_name));
+        setPhysios(sortedForDropdown);
+        
+        // Sort for leaderboard (most proms first)
+        const sortedForLeaderboard = [...res].sort((a, b) => b.proms_count - a.proms_count);
+        setPhysioMetrics(sortedForLeaderboard);
+      })
       .catch(err => console.error('Failed to fetch physios', err));
   }, []);
 

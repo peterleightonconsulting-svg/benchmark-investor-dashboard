@@ -119,9 +119,12 @@ app.get('/api/physios', async (req, res) => {
       ssl: process.env.DB_HOST ? { rejectUnauthorized: false } : null
     });
     const [physios] = await connection.query(`
-      SELECT u.id, u.first_name, u.last_name, COUNT(p.id) as patient_count
+      SELECT u.id, u.first_name, u.last_name, 
+             COUNT(DISTINCT p.id) as patient_count,
+             COUNT(DISTINCT psf.patient_id) as proms_count
       FROM users u
       JOIN patients p ON u.id = p.doctor_id
+      LEFT JOIN patient_symptoms_form psf ON p.id = psf.patient_id
       WHERE u.is_test_account = 0 AND u.email NOT LIKE '%@benchmarkps.org'
       GROUP BY u.id
       HAVING patient_count > 0
