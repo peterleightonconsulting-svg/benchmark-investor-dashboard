@@ -119,9 +119,17 @@ app.get('/api/physios', async (req, res) => {
       ssl: process.env.DB_HOST ? { rejectUnauthorized: false } : null
     });
     const [physios] = await connection.query(`
-      SELECT u.id, u.first_name, u.last_name, 
-             COUNT(DISTINCT p.id) as patient_count,
-             COUNT(DISTINCT psf.patient_id) as proms_count
+      SELECT 
+        u.id, 
+        u.first_name, 
+        u.last_name, 
+        COUNT(DISTINCT p.id) as patient_count,
+        COUNT(DISTINCT psf.patient_id) as proms_count,
+        COUNT(DISTINCT CASE WHEN (
+          SELECT COUNT(*) 
+          FROM patient_symptoms_form psf2 
+          WHERE psf2.patient_id = p.id
+        ) >= 2 THEN p.id ELSE NULL END) as longitudinal_proms_count
       FROM users u
       JOIN patients p ON u.id = p.doctor_id
       LEFT JOIN patient_symptoms_form psf ON p.id = psf.patient_id

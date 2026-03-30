@@ -394,6 +394,7 @@ export default function App() {
               <th style={{ padding: '0.75rem', textAlign: 'left', borderBottom: '1px solid #e5e7eb', backgroundColor: '#f9fafb', color: '#6b7280', fontWeight: 600 }}>Physiotherapist</th>
               <th style={{ padding: '0.75rem', textAlign: 'left', borderBottom: '1px solid #e5e7eb', backgroundColor: '#f9fafb', color: '#6b7280', fontWeight: 600 }}>Total Patients</th>
               <th style={{ padding: '0.75rem', textAlign: 'left', borderBottom: '1px solid #e5e7eb', backgroundColor: '#f9fafb', color: '#6b7280', fontWeight: 600 }}>Patients with PROMs</th>
+              <th style={{ padding: '0.75rem', textAlign: 'left', borderBottom: '1px solid #e5e7eb', backgroundColor: '#f9fafb', color: '#6b7280', fontWeight: 600 }}>Longitudinal PROMs</th>
               <th style={{ padding: '0.75rem', textAlign: 'left', borderBottom: '1px solid #e5e7eb', backgroundColor: '#f9fafb', color: '#6b7280', fontWeight: 600 }}>% Tested</th>
             </tr>
           </thead>
@@ -403,6 +404,7 @@ export default function App() {
                 <td style={{ padding: '0.75rem', borderBottom: '1px solid #e5e7eb', fontWeight: 600, color: '#111827' }}>{physio.first_name} {physio.last_name}</td>
                 <td style={{ padding: '0.75rem', borderBottom: '1px solid #e5e7eb' }}>{physio.patient_count}</td>
                 <td style={{ padding: '0.75rem', borderBottom: '1px solid #e5e7eb' }}>{physio.proms_count}</td>
+                <td style={{ padding: '0.75rem', borderBottom: '1px solid #e5e7eb' }}>{physio.longitudinal_proms_count || 0}</td>
                 <td style={{ padding: '0.75rem', borderBottom: '1px solid #e5e7eb' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     <div style={{ width: '100%', background: '#e5e7eb', borderRadius: '999px', height: '0.5rem', overflow: 'hidden' }}>
