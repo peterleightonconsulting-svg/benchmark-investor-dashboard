@@ -59,8 +59,8 @@ export default function App() {
         const sortedForLeaderboard = [...res]
           .filter(p => p.patient_count > 1)
           .sort((a, b) => {
-             const aPct = a.patient_count > 0 ? a.proms_count / a.patient_count : 0;
-             const bPct = b.patient_count > 0 ? b.proms_count / b.patient_count : 0;
+             const aPct = a.patient_count > 0 ? a.longitudinal_proms_count / a.patient_count : 0;
+             const bPct = b.patient_count > 0 ? b.longitudinal_proms_count / b.patient_count : 0;
              if (bPct !== aPct) return bPct - aPct;
              // Tie-breaker: total patients
              return b.patient_count - a.patient_count;
@@ -394,7 +394,7 @@ export default function App() {
 
 
       {/* PROMs Leaderboard */}
-      <h2 className="section-title" style={{ marginTop: '2rem' }}>PROMs Testing Leaderboard</h2>
+      <h2 className="section-title" style={{ marginTop: '2rem' }}>PROMs Testing Leaderboard <span style={{ fontSize: '0.875rem', fontWeight: 400, color: '#6b7280', marginLeft: '1rem' }}>(*Success Rate = Percentage of cohort with longitudinal tracking)</span></h2>
       <div style={{ background: '#fff', borderRadius: '0.75rem', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', overflow: 'hidden', marginBottom: '2rem' }}>
         <table className="improvements-table" style={{ margin: 0, width: '100%' }}>
           <thead>
@@ -404,7 +404,7 @@ export default function App() {
               <th style={{ padding: '0.75rem', textAlign: 'left', borderBottom: '1px solid #e5e7eb', backgroundColor: '#f9fafb', color: '#6b7280', fontWeight: 600 }}>Total Patients</th>
               <th style={{ padding: '0.75rem', textAlign: 'left', borderBottom: '1px solid #e5e7eb', backgroundColor: '#f9fafb', color: '#6b7280', fontWeight: 600 }}>Patients with PROMs</th>
               <th style={{ padding: '0.75rem', textAlign: 'left', borderBottom: '1px solid #e5e7eb', backgroundColor: '#f9fafb', color: '#6b7280', fontWeight: 600 }}>Longitudinal PROMs</th>
-              <th style={{ padding: '0.75rem', textAlign: 'left', borderBottom: '1px solid #e5e7eb', backgroundColor: '#f9fafb', color: '#6b7280', fontWeight: 600 }}>% Tested</th>
+              <th style={{ padding: '0.75rem', textAlign: 'left', borderBottom: '1px solid #e5e7eb', backgroundColor: '#f9fafb', color: '#6b7280', fontWeight: 600 }}>% Success Rate*</th>
             </tr>
           </thead>
           <tbody>
@@ -420,10 +420,10 @@ export default function App() {
                 <td style={{ padding: '0.75rem', borderBottom: '1px solid #e5e7eb' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     <div style={{ width: '100%', background: '#e5e7eb', borderRadius: '999px', height: '0.5rem', overflow: 'hidden' }}>
-                      <div style={{ width: `${physio.patient_count > 0 ? (physio.proms_count / physio.patient_count) * 100 : 0}%`, background: '#10b981', height: '100%' }}></div>
+                      <div style={{ width: `${physio.patient_count > 0 ? (physio.longitudinal_proms_count / physio.patient_count) * 100 : 0}%`, background: '#4f46e5', height: '100%' }}></div>
                     </div>
                     <span style={{ fontSize: '0.75rem', color: '#6b7280', minWidth: '3rem' }}>
-                      {physio.patient_count > 0 ? ((physio.proms_count / physio.patient_count) * 100).toFixed(1) : 0}%
+                      {physio.patient_count > 0 ? ((physio.longitudinal_proms_count / physio.patient_count) * 100).toFixed(1) : 0}%
                     </span>
                   </div>
                 </td>
