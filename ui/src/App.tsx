@@ -384,6 +384,41 @@ export default function App() {
         </div>
       </div>
 
+
+      {/* PROMs Leaderboard */}
+      <h2 className="section-title" style={{ marginTop: '2rem' }}>PROMs Testing Leaderboard</h2>
+      <div style={{ background: '#fff', borderRadius: '0.75rem', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', overflow: 'hidden', marginBottom: '2rem' }}>
+        <table className="improvements-table" style={{ margin: 0, width: '100%' }}>
+          <thead>
+            <tr>
+              <th style={{ padding: '0.75rem', textAlign: 'left', borderBottom: '1px solid #e5e7eb', backgroundColor: '#f9fafb', color: '#6b7280', fontWeight: 600 }}>Physiotherapist</th>
+              <th style={{ padding: '0.75rem', textAlign: 'left', borderBottom: '1px solid #e5e7eb', backgroundColor: '#f9fafb', color: '#6b7280', fontWeight: 600 }}>Total Patients</th>
+              <th style={{ padding: '0.75rem', textAlign: 'left', borderBottom: '1px solid #e5e7eb', backgroundColor: '#f9fafb', color: '#6b7280', fontWeight: 600 }}>Patients with PROMs</th>
+              <th style={{ padding: '0.75rem', textAlign: 'left', borderBottom: '1px solid #e5e7eb', backgroundColor: '#f9fafb', color: '#6b7280', fontWeight: 600 }}>% Tested</th>
+            </tr>
+          </thead>
+          <tbody>
+            {physioMetrics.filter(p => p.patient_count > 0).map((physio: any) => (
+              <tr key={physio.id}>
+                <td style={{ padding: '0.75rem', borderBottom: '1px solid #e5e7eb', fontWeight: 600, color: '#111827' }}>{physio.first_name} {physio.last_name}</td>
+                <td style={{ padding: '0.75rem', borderBottom: '1px solid #e5e7eb' }}>{physio.patient_count}</td>
+                <td style={{ padding: '0.75rem', borderBottom: '1px solid #e5e7eb' }}>{physio.proms_count}</td>
+                <td style={{ padding: '0.75rem', borderBottom: '1px solid #e5e7eb' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <div style={{ width: '100%', background: '#e5e7eb', borderRadius: '999px', height: '0.5rem', overflow: 'hidden' }}>
+                      <div style={{ width: `${physio.patient_count > 0 ? (physio.proms_count / physio.patient_count) * 100 : 0}%`, background: '#10b981', height: '100%' }}></div>
+                    </div>
+                    <span style={{ fontSize: '0.75rem', color: '#6b7280', minWidth: '3rem' }}>
+                      {physio.patient_count > 0 ? ((physio.proms_count / physio.patient_count) * 100).toFixed(1) : 0}%
+                    </span>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
       {/* Floating Chat Button */}
       <button 
         onClick={() => setIsChatOpen(true)}
