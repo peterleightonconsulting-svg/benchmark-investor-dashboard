@@ -55,8 +55,16 @@ export default function App() {
         const sortedForDropdown = [...res].sort((a, b) => a.first_name.localeCompare(b.first_name));
         setPhysios(sortedForDropdown);
         
-        // Sort for leaderboard (most proms first)
-        const sortedForLeaderboard = [...res].sort((a, b) => b.proms_count - a.proms_count);
+        // Sort for leaderboard (% tested first, > 1 patient only)
+        const sortedForLeaderboard = [...res]
+          .filter(p => p.patient_count > 1)
+          .sort((a, b) => {
+             const aPct = a.patient_count > 0 ? a.proms_count / a.patient_count : 0;
+             const bPct = b.patient_count > 0 ? b.proms_count / b.patient_count : 0;
+             if (bPct !== aPct) return bPct - aPct;
+             // Tie-breaker: total patients
+             return b.patient_count - a.patient_count;
+          });
         setPhysioMetrics(sortedForLeaderboard);
       })
       .catch(err => console.error('Failed to fetch physios', err));
