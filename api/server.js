@@ -285,9 +285,10 @@ app.get('/api/stats', async (req, res) => {
     }
     improvementsData.sort((a, b) => b.patients - a.patients);
 
-    // --- Updated PROMs Logic (Min 3 days filter) ---
+    // --- Updated PROMs Logic (Min 3 days filter & Mean Activity) ---
     const [promsRecords] = await connection.query(`
-      SELECT psf.patient_id, psf.created_at, psf.pain_intensity, psf.activity_rating 
+      SELECT psf.patient_id, psf.created_at, psf.pain_intensity, 
+             psf.activity_one_result, psf.activity_two_result, psf.activity_three_result
       FROM patient_symptoms_form psf
       JOIN patients p ON psf.patient_id = p.id
       JOIN users u ON p.doctor_id = u.id
@@ -301,6 +302,13 @@ app.get('/api/stats', async (req, res) => {
     }
     const painChanges = [];
     const activityChanges = [];
+
+    const getMeanActivity = (record) => {
+      const vals = [record.activity_one_result, record.activity_two_result, record.activity_three_result].filter(v => v !== null);
+      if (vals.length === 0) return null;
+      return vals.reduce((a, b) => a + b, 0) / vals.length;
+    };
+
     for (const patientId in patientProms) {
       const records = patientProms[patientId];
       if (records.length > 1) {
@@ -315,8 +323,11 @@ app.get('/api/stats', async (req, res) => {
           if (first.pain_intensity !== null && last.pain_intensity !== null) {
             painChanges.push(last.pain_intensity - first.pain_intensity);
           }
-          if (first.activity_rating !== null && last.activity_rating !== null) {
-            activityChanges.push(last.activity_rating - first.activity_rating);
+          
+          const firstMean = getMeanActivity(first);
+          const lastMean = getMeanActivity(last);
+          if (firstMean !== null && lastMean !== null) {
+            activityChanges.push(lastMean - firstMean);
           }
         }
       }
