@@ -8,6 +8,8 @@ export default function App() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<string>('');
+  const [physios, setPhysios] = useState<any[]>([]);
+  const [selectedPhysio, setSelectedPhysio] = useState<string>('');
   
   // Chatbot State
   const [isChatOpen, setIsChatOpen] = useState(false);
@@ -45,8 +47,16 @@ export default function App() {
   };
 
   useEffect(() => {
+    fetch('/api/physios')
+      .then(res => res.json())
+      .then(res => setPhysios(res))
+      .catch(err => console.error('Failed to fetch physios', err));
+  }, []);
+
+  useEffect(() => {
     const fetchData = () => {
-      fetch('/api/stats')
+      const url = selectedPhysio ? `/api/stats?physioId=${selectedPhysio}` : '/api/stats';
+      fetch(url)
         .then(res => res.json())
         .then(res => {
           setData(res);
@@ -95,9 +105,23 @@ export default function App() {
           <h1>Benchmark Investor Dashboard</h1>
           <p>Live metrics from the MVP platform</p>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: '#fff', padding: '0.5rem 1rem', borderRadius: '2rem', boxShadow: '0 1px 2px rgba(0,0,0,0.05)', fontSize: '0.875rem', color: '#6b7280' }}>
-          <RefreshCw size={14} className="spin-icon" />
-          Last updated: {lastUpdated}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <select 
+            value={selectedPhysio} 
+            onChange={(e) => setSelectedPhysio(e.target.value)}
+            style={{ padding: '0.5rem 1rem', borderRadius: '2rem', border: '1px solid #e5e7eb', backgroundColor: 'white', color: '#374151', fontSize: '0.875rem', outline: 'none', cursor: 'pointer', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}
+          >
+            <option value="">All Clinicians</option>
+            {physios.map((p: any) => (
+              <option key={p.id} value={p.id}>
+                {p.first_name} {p.last_name} ({p.patient_count} patients)
+              </option>
+            ))}
+          </select>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: '#fff', padding: '0.5rem 1rem', borderRadius: '2rem', boxShadow: '0 1px 2px rgba(0,0,0,0.05)', fontSize: '0.875rem', color: '#6b7280' }}>
+            <RefreshCw size={14} className="spin-icon" />
+            Last updated: {lastUpdated}
+          </div>
         </div>
       </header>
 
