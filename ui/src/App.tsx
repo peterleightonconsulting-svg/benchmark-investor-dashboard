@@ -89,7 +89,7 @@ export default function App() {
     fetchData();
     const interval = setInterval(fetchData, 60000); // Update every 60 seconds
     return () => clearInterval(interval);
-  }, []);
+  }, [selectedPhysio]);
 
   if (loading) {
     return <div className="loading">Loading Benchmark Data...</div>;
