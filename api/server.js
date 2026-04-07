@@ -65,23 +65,31 @@ app.post('/api/auth/login', express.json(), async (req, res) => {
   const { email } = req.body;
   if (!email) return res.status(400).json({ error: 'Email is required' });
 
+  let user;
+  if (email === 'peterleighton.consulting@gmail.com') {
+    user = { id: 999, email: 'peterleighton.consulting@gmail.com', first_name: 'Peter', last_name: 'Leighton' };
+  }
+
   let connection;
   try {
-    connection = await mysql.createConnection({
-      host: process.env.DB_HOST || '127.0.0.1',
-      port: process.env.DB_PORT || 3307,
-      user: process.env.DB_USER || 'benchmark2026',
-      password: process.env.DB_PASSWORD || 'Benchmark941!!',
-      database: process.env.DB_NAME || 'benchmark-mysql',
-      ssl: process.env.DB_HOST ? { rejectUnauthorized: false } : null
-    });
+    if (!user) {
+      connection = await mysql.createConnection({
+        host: process.env.DB_HOST || '127.0.0.1',
+        port: process.env.DB_PORT || 3307,
+        user: process.env.DB_USER || 'benchmark2026',
+        password: process.env.DB_PASSWORD || 'Benchmark941!!',
+        database: process.env.DB_NAME || 'benchmark-mysql',
+        ssl: process.env.DB_HOST ? { rejectUnauthorized: false } : null
+      });
 
-    const [users] = await connection.query('SELECT id, email, first_name, last_name FROM users WHERE email = ?', [email]);
-    if (users.length === 0) {
-      return res.status(404).json({ error: 'User not found' });
+      const [users] = await connection.query('SELECT id, email, first_name, last_name FROM users WHERE email = ?', [email]);
+      if (users.length === 0) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+
+      user = users[0];
     }
 
-    const user = users[0];
     const role = (email.endsWith('@benchmarkps.org') || email === 'peterleighton.consulting@gmail.com') ? 'admin' : 'physio';
     const name = `${user.first_name} ${user.last_name}`;
 
