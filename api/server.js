@@ -4,7 +4,7 @@ const mysql = require('mysql2/promise');
 const path = require('path');
 const { GoogleGenAI } = require('@google/genai');
 const jwt = require('jsonwebtoken');
-const { Resend } = require('resend');
+const nodemailer = require('nodemailer');
 
 const app = express();
 app.use(cors());
@@ -13,7 +13,13 @@ const port = process.env.PORT || 3001;
 const JWT_SECRET = process.env.JWT_SECRET || 'benchmark-secret-2026';
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-const resend = new Resend(process.env.RESEND_API_KEY);
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS
+  }
+});
 
 // Database Schema Context for the AI
 const schemaContext = `
@@ -84,9 +90,9 @@ app.post('/api/auth/login', express.json(), async (req, res) => {
     const magicLink = `${req.headers.origin || 'http://localhost:5173'}/?token=${token}`;
     console.log(`Magic Link: ${magicLink}`);
 
-    if (process.env.RESEND_API_KEY) {
-      await resend.emails.send({
-        from: 'Benchmark PS <onboarding@resend.dev>',
+    if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
+      await transporter.sendMail({
+        from: `"Benchmark Dashboard" <${process.env.EMAIL_USER}>`,
         to: user.email,
         subject: 'Your Benchmark Dashboard Login Link',
         html: `<p>Hi ${user.first_name},</p><p>Click the link below to securely log into your Benchmark Dashboard:</p><p><a href="${magicLink}"><strong>Log In Now</strong></a></p><p>This link expires in 7 days.</p>`
