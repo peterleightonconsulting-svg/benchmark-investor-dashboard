@@ -74,7 +74,7 @@ app.post('/api/auth/login', express.json(), async (req, res) => {
     }
 
     const user = users[0];
-    const role = email.endsWith('@benchmarkps.org') ? 'admin' : 'physio';
+    const role = (email.endsWith('@benchmarkps.org') || email === 'peterleighton.consulting@gmail.com') ? 'admin' : 'physio';
     const name = `${user.first_name} ${user.last_name}`;
 
     const token = jwt.sign({ id: user.id, email: user.email, role, name }, JWT_SECRET, { expiresIn: '7d' });
