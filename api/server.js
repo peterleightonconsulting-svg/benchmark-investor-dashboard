@@ -60,6 +60,9 @@ const authMiddleware = (req, res, next) => {
   }
 };
 
+// Ping route for health check
+app.get('/api/ping', (req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
+
 // Magic Link Login Route
 app.post('/api/auth/login', express.json(), async (req, res) => {
   const { email } = req.body;
@@ -73,15 +76,18 @@ app.post('/api/auth/login', express.json(), async (req, res) => {
   let connection;
   try {
     if (!user) {
+      console.log(`[AUTH] Connecting to DB for ${email}...`);
       connection = await mysql.createConnection({
         host: process.env.DB_HOST || '127.0.0.1',
         port: process.env.DB_PORT || 3307,
         user: process.env.DB_USER || 'benchmark2026',
         password: process.env.DB_PASSWORD || 'Benchmark941!!',
         database: process.env.DB_NAME || 'benchmark-mysql',
-        ssl: process.env.DB_HOST ? { rejectUnauthorized: false } : null
+        ssl: process.env.DB_HOST ? { rejectUnauthorized: false } : null,
+        connectTimeout: 10000 // 10 seconds
       });
 
+      console.log(`[AUTH] DB Connected. Querying user ${email}...`);
       const [users] = await connection.query('SELECT id, email, first_name, last_name FROM users WHERE email = ?', [email]);
       if (users.length === 0) {
         return res.status(404).json({ error: 'User not found' });
@@ -159,7 +165,8 @@ app.post('/api/chat', express.json(), authMiddleware, async (req, res) => {
       user: process.env.DB_USER || 'benchmark2026',
       password: process.env.DB_PASSWORD || 'Benchmark941!!',
       database: process.env.DB_NAME || 'benchmark-mysql',
-      ssl: process.env.DB_HOST ? { rejectUnauthorized: false } : null
+      ssl: process.env.DB_HOST ? { rejectUnauthorized: false } : null,
+      connectTimeout: 10000
     });
 
     const [rows] = await connection.query(generatedSQL);
@@ -205,7 +212,8 @@ app.get('/api/physios', authMiddleware, async (req, res) => {
       user: process.env.DB_USER || 'benchmark2026',
       password: process.env.DB_PASSWORD || 'Benchmark941!!',
       database: process.env.DB_NAME || 'benchmark-mysql',
-      ssl: process.env.DB_HOST ? { rejectUnauthorized: false } : null
+      ssl: process.env.DB_HOST ? { rejectUnauthorized: false } : null,
+      connectTimeout: 10000
     });
     const [physios] = await connection.query(`
       SELECT 
@@ -248,7 +256,8 @@ app.get('/api/stats', authMiddleware, async (req, res) => {
       user: process.env.DB_USER || 'benchmark2026',
       password: process.env.DB_PASSWORD || 'Benchmark941!!',
       database: process.env.DB_NAME || 'benchmark-mysql',
-      ssl: process.env.DB_HOST ? { rejectUnauthorized: false } : null
+      ssl: process.env.DB_HOST ? { rejectUnauthorized: false } : null,
+      connectTimeout: 10000
     });
 
     async function queryVal(sql) {
