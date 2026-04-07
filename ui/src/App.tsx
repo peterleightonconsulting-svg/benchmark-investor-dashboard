@@ -363,7 +363,7 @@ export default function App() {
             <h3 style={{ margin: 0 }}>Physical Capacity Improvement Rates</h3>
           </div>
           <p style={{ color: '#6b7280', fontSize: '0.875rem', marginBottom: '1rem' }}>
-            <strong>Metric:</strong> Avg increase <strong>per week</strong>. Reclassified by <strong>Injured</strong> vs <strong>Uninjured</strong> limb.
+            <strong>Metric:</strong> Avg increase <strong>per week</strong>. Reclassified by <strong>Injured</strong> vs <strong>Uninjured</strong> limb (tests with no laterality appear under Injured).
           </p>
           <div style={{ overflowX: 'auto' }}>
             <table className="improvements-table">
@@ -382,7 +382,7 @@ export default function App() {
                     <td><strong>{test.testName}</strong></td>
                     <td>{test.category}</td>
                     <td>{test.patients}</td>
-                    <td>{renderChange(test.injuredAvg)}</td>
+                    <td>{renderChange(test.injuredAvg || test.noLatAvg)}</td>
                     <td>{renderChange(test.uninjuredAvg)}</td>
                   </tr>
                 ))}
