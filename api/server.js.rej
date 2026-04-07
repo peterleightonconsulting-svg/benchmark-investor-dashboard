@@ -1,0 +1,25 @@
+@@ -107,6 +107,24 @@
+   return Math.max(1, Math.round((d2 - d1) / (7 * 24 * 60 * 60 * 1000)));
+ }
+ 
++// Get list of active physios for the dropdown
++app.get('/api/physios', async (req, res) => {
++  let connection;
++  try {
++    connection = await mysql.createConnection({
++      host: process.env.DB_HOST || '127.0.0.1', port: process.env.DB_PORT || 3307, user: process.env.DB_USER || 'benchmark2026', password: process.env.DB_PASSWORD || 'Benchmark941!!', database: process.env.DB_NAME || 'benchmark-mysql', ssl: process.env.DB_HOST ? { rejectUnauthorized: false } : null
++    });
++    const [physios] = await connection.query(`
++      SELECT u.id, u.first_name, u.last_name, COUNT(p.id) as patient_count
++      FROM users u JOIN patients p ON u.id = p.doctor_id
++      WHERE u.is_test_account = 0 AND u.email NOT LIKE '%@benchmarkps.org'
++      GROUP BY u.id HAVING patient_count > 0 ORDER BY u.first_name ASC
++    `);
++    res.json(physios);
++  } catch (error) { res.status(500).json({ error: error.message }); }
++  finally { if (connection) await connection.end(); }
++});
++
+ app.get('/api/stats', async (req, res) => {
+   let connection;
+   try {
