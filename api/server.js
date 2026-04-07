@@ -96,18 +96,25 @@ app.post('/api/auth/login', express.json(), async (req, res) => {
     const token = jwt.sign({ id: user.id, email: user.email, role, name }, JWT_SECRET, { expiresIn: '7d' });
 
     const magicLink = `${req.headers.origin || 'http://localhost:5173'}/?token=${token}`;
-    console.log(`Magic Link: ${magicLink}`);
+    console.log(`[AUTH] Magic Link for ${user.email}: ${magicLink}`);
 
     if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
-      await transporter.sendMail({
+      console.log(`[AUTH] Attempting to send email to ${user.email} via ${process.env.EMAIL_USER}`);
+      transporter.sendMail({
         from: `"Benchmark Dashboard" <${process.env.EMAIL_USER}>`,
         to: user.email,
         subject: 'Your Benchmark Dashboard Login Link',
         html: `<p>Hi ${user.first_name},</p><p>Click the link below to securely log into your Benchmark Dashboard:</p><p><a href="${magicLink}"><strong>Log In Now</strong></a></p><p>This link expires in 7 days.</p>`
+      }).then(info => {
+        console.log(`[AUTH] Email sent successfully to ${user.email}: ${info.response}`);
+      }).catch(err => {
+        console.error(`[AUTH] Failed to send email to ${user.email}:`, err);
       });
+    } else {
+      console.warn(`[AUTH] Skipping email send: EMAIL_USER or EMAIL_PASS missing.`);
     }
 
-    res.json({ message: 'Check your email/console!' });
+    res.json({ message: 'Check your email (or server logs during testing)!' });
   } catch (error) {
     console.error('Login Error:', error);
     res.status(500).json({ error: error.message });
