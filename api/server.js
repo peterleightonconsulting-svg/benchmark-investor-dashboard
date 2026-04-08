@@ -3,29 +3,12 @@ const cors = require('cors');
 const mysql = require('mysql2/promise');
 const path = require('path');
 const { GoogleGenAI } = require('@google/genai');
-const jwt = require('jsonwebtoken');
-const nodemailer = require('nodemailer');
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 const app = express();
 app.use(cors());
 
 const port = process.env.PORT || 3001;
-const JWT_SECRET = process.env.JWT_SECRET || 'benchmark-secret-2026';
-
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
-  port: 465,
-  secure: true,
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS
-  },
-  tls: {
-    // do not fail on invalid certs
-    rejectUnauthorized: false
-  }
-});
 
 // Database Schema Context for the AI
 const schemaContext = `
@@ -50,94 +33,11 @@ CRITICAL RULES:
 4. Try to join tables to give human-readable names (like joining patients to users to get the doctor's name).
 `;
 
-// Magic Link Auth Middleware
-const authMiddleware = (req, res, next) => {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-  const token = authHeader.split(' ')[1];
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    req.user = decoded;
-    next();
-  } catch (err) {
-    return res.status(401).json({ error: 'Invalid token' });
-  }
-};
-
 // Ping route for health check
 app.get('/api/ping', (req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
 
-// Magic Link Login Route
-app.post('/api/auth/login', express.json(), async (req, res) => {
-  const { email } = req.body;
-  console.log(`[AUTH] Login request received for: ${email}`);
-  if (!email) return res.status(400).json({ error: 'Email is required' });
-
-  let user;
-  if (email === 'peterleighton.consulting@gmail.com') {
-    user = { id: 999, email: 'peterleighton.consulting@gmail.com', first_name: 'Peter', last_name: 'Leighton' };
-  }
-
-  let connection;
-  try {
-    if (!user) {
-      console.log(`[AUTH] Connecting to DB for ${email}...`);
-      connection = await mysql.createConnection({
-        host: process.env.DB_HOST || '127.0.0.1',
-        port: process.env.DB_PORT || 3307,
-        user: process.env.DB_USER || 'benchmark2026',
-        password: process.env.DB_PASSWORD || 'Benchmark941!!',
-        database: process.env.DB_NAME || 'benchmark-mysql',
-        ssl: process.env.DB_HOST ? { rejectUnauthorized: false } : null,
-        connectTimeout: 10000 // 10 seconds
-      });
-
-      console.log(`[AUTH] DB Connected. Querying user ${email}...`);
-      const [users] = await connection.query('SELECT id, email, first_name, last_name FROM users WHERE email = ?', [email]);
-      if (users.length === 0) {
-        return res.status(404).json({ error: 'User not found' });
-      }
-
-      user = users[0];
-    }
-
-    const role = (email.endsWith('@benchmarkps.org') || email === 'peterleighton.consulting@gmail.com') ? 'admin' : 'physio';
-    const name = `${user.first_name} ${user.last_name}`;
-
-    const token = jwt.sign({ id: user.id, email: user.email, role, name }, JWT_SECRET, { expiresIn: '7d' });
-
-    const magicLink = `${req.headers.origin || 'http://localhost:5173'}/?token=${token}`;
-    console.log(`[AUTH] Magic Link for ${user.email}: ${magicLink}`);
-
-    if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
-      console.log(`[AUTH] Attempting to send email to ${user.email} via ${process.env.EMAIL_USER}`);
-      transporter.sendMail({
-        from: `"Benchmark Dashboard" <${process.env.EMAIL_USER}>`,
-        to: user.email,
-        subject: 'Your Benchmark Dashboard Login Link',
-        html: `<p>Hi ${user.first_name},</p><p>Click the link below to securely log into your Benchmark Dashboard:</p><p><a href="${magicLink}"><strong>Log In Now</strong></a></p><p>This link expires in 7 days.</p>`
-      }).then(info => {
-        console.log(`[AUTH] Email sent successfully to ${user.email}: ${info.response}`);
-      }).catch(err => {
-        console.error(`[AUTH] Failed to send email to ${user.email}:`, err);
-      });
-    } else {
-      console.warn(`[AUTH] Skipping email send: EMAIL_USER or EMAIL_PASS missing.`);
-    }
-
-    res.json({ message: 'Check your email (or server logs during testing)!' });
-  } catch (error) {
-    console.error('Login Error:', error);
-    res.status(500).json({ error: error.message });
-  } finally {
-    if (connection) await connection.end();
-  }
-});
-
 // AI Chat Route
-app.post('/api/chat', express.json(), authMiddleware, async (req, res) => {
+app.post('/api/chat', express.json(), async (req, res) => {
   let connection;
   try {
     const userQuestion = req.body.question;
@@ -210,7 +110,7 @@ function getWeeksBetween(d1, d2) {
 }
 
 // API Route - Get Physiotherapists
-app.get('/api/physios', authMiddleware, async (req, res) => {
+app.get('/api/physios', async (req, res) => {
   let connection;
   try {
     connection = await mysql.createConnection({
@@ -251,10 +151,7 @@ app.get('/api/physios', authMiddleware, async (req, res) => {
 });
 
 // API Route
-app.get('/api/stats', authMiddleware, async (req, res) => {
-  if (req.user.role === 'physio') {
-    req.query.physioId = req.user.id;
-  }
+app.get('/api/stats', async (req, res) => {
   let connection;
   try {
     connection = await mysql.createConnection({

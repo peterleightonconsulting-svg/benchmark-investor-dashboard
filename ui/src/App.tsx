@@ -1,83 +1,10 @@
 import { useEffect, useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { Activity, Users, DollarSign, Target, ActivitySquare, CalendarDays, TrendingUp, HeartPulse, RefreshCw, MessageSquare, X, Send, Zap, LogOut } from 'lucide-react';
+import { Activity, Users, DollarSign, Target, ActivitySquare, CalendarDays, TrendingUp, HeartPulse, RefreshCw, MessageSquare, X, Send } from 'lucide-react';
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
 
-// Helper to parse JWT
-const parseJwt = (token: string) => {
-  try {
-    const base64Url = token.split('.')[1];
-    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-    const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function(c) {
-        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-    }).join(''));
-
-    return JSON.parse(jsonPayload);
-  } catch (e) {
-    return null;
-  }
-};
-
-const LoginScreen = ({ setToken, setUser }: any) => {
-  const [email, setEmail] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState('');
-
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email })
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setMessage(data.message || 'Check your email/console!');
-      } else {
-        setMessage(data.error || 'Login failed');
-      }
-    } catch (err) {
-      setMessage('Network error. Is the server running?');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', backgroundColor: '#f3f4f6' }}>
-      <div style={{ backgroundColor: 'white', padding: '2rem', borderRadius: '0.5rem', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', width: '100%', maxWidth: '400px' }}>
-        <h2 style={{ textAlign: 'center', marginBottom: '1.5rem' }}>Login to Benchmark</h2>
-        <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          <input 
-            type="email" 
-            value={email} 
-            onChange={(e) => setEmail(e.target.value)} 
-            placeholder="Enter your email" 
-            required 
-            style={{ padding: '0.75rem', borderRadius: '0.25rem', border: '1px solid #d1d5db' }}
-          />
-          <button 
-            type="submit" 
-            disabled={loading}
-            style={{ padding: '0.75rem', backgroundColor: '#4f46e5', color: 'white', border: 'none', borderRadius: '0.25rem', cursor: 'pointer', fontWeight: 'bold' }}
-          >
-            {loading ? 'Sending...' : 'Send Magic Link'}
-          </button>
-        </form>
-        {message && <p style={{ marginTop: '1rem', textAlign: 'center', color: message.includes('failed') || message.includes('error') ? '#ef4444' : '#10b981' }}>{message}</p>}
-      </div>
-    </div>
-  );
-};
-
-
 export default function App() {
-  const [token, setToken] = useState(localStorage.getItem('benchmark_token') || '');
-  const [user, setUser] = useState<any>(token ? parseJwt(token) : null);
-
   const [data, setData] = useState<any>(null);
   const [physioMetrics, setPhysioMetrics] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -90,23 +17,6 @@ export default function App() {
   const [chatInput, setChatInput] = useState('');
   const [chatHistory, setChatHistory] = useState<{role: 'user' | 'ai', text: string}[]>([]);
   const [isChatLoading, setIsChatLoading] = useState(false);
-
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const urlToken = params.get('token');
-    if (urlToken) {
-      localStorage.setItem('benchmark_token', urlToken);
-      setToken(urlToken);
-      setUser(parseJwt(urlToken));
-      window.history.replaceState({}, document.title, window.location.pathname);
-    }
-  }, []);
-
-  const handleLogout = () => {
-    localStorage.removeItem('benchmark_token');
-    setToken('');
-    setUser(null);
-  };
 
   const handleChatSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -121,8 +31,7 @@ export default function App() {
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({ question })
       });
@@ -141,11 +50,7 @@ export default function App() {
   };
 
   useEffect(() => {
-    if (!token) return;
-
-    fetch('/api/physios', {
-      headers: { 'Authorization': `Bearer ${token}` }
-    })
+    fetch('/api/physios')
       .then(res => res.json())
       .then(res => {
         // Sort for dropdown (alphabetical)
@@ -165,16 +70,12 @@ export default function App() {
         setPhysioMetrics(sortedForLeaderboard);
       })
       .catch(err => console.error('Failed to fetch physios', err));
-  }, [token]);
+  }, []);
 
   useEffect(() => {
-    if (!token) return;
-
     const fetchData = () => {
       const url = selectedPhysio ? `/api/stats?physioId=${selectedPhysio}` : '/api/stats';
-      fetch(url, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      })
+      fetch(url)
         .then(res => res.json())
         .then(res => {
           setData(res);
@@ -190,11 +91,7 @@ export default function App() {
     fetchData();
     const interval = setInterval(fetchData, 60000); // Update every 60 seconds
     return () => clearInterval(interval);
-  }, [selectedPhysio, token]);
-
-  if (!token) {
-    return <LoginScreen setToken={setToken} setUser={setUser} />;
-  }
+  }, [selectedPhysio]);
 
   if (loading) {
     return <div className="loading">Loading Benchmark Data...</div>;
@@ -211,7 +108,7 @@ export default function App() {
   }
 
   const { metrics, charts, outcomes } = data;
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = true;
 
   const renderChange = (val: string | null) => {
     if (!val) return <span className="neutral-change">-</span>;
@@ -247,13 +144,6 @@ export default function App() {
             <RefreshCw size={14} className="spin-icon" />
             Last updated: {lastUpdated}
           </div>
-          <button 
-            onClick={handleLogout}
-            style={{ padding: '0.5rem', borderRadius: '50%', border: 'none', backgroundColor: '#f3f4f6', cursor: 'pointer', color: '#4b5563', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-            title="Logout"
-          >
-            <LogOut size={18} />
-          </button>
         </div>
       </header>
 
@@ -530,15 +420,13 @@ export default function App() {
           </thead>
           <tbody>
             {physioMetrics.filter(p => p.patient_count > 0).map((physio: any, idx: number) => {
-              const isCurrentUser = user?.id === physio.id;
               return (
-              <tr key={physio.id} style={{ backgroundColor: isCurrentUser ? '#eef2ff' : 'transparent' }}>
+              <tr key={physio.id}>
                 <td style={{ padding: '0.75rem', borderBottom: '1px solid #e5e7eb', textAlign: 'center', fontWeight: 700, color: '#6b7280' }}>
                   {idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : idx + 1}
                 </td>
                 <td style={{ padding: '0.75rem', borderBottom: '1px solid #e5e7eb', fontWeight: 600, color: '#111827' }}>
-                  {isAdmin || isCurrentUser ? `${physio.first_name} ${physio.last_name}` : 'Clinician'}
-                  {isCurrentUser && <span style={{ marginLeft: '0.5rem', fontSize: '0.75rem', color: '#4f46e5', fontWeight: 'bold' }}>(You)</span>}
+                  {physio.first_name} {physio.last_name}
                 </td>
                 <td style={{ padding: '0.75rem', borderBottom: '1px solid #e5e7eb' }}>{physio.patient_count}</td>
                 <td style={{ padding: '0.75rem', borderBottom: '1px solid #e5e7eb' }}>{physio.proms_count}</td>
