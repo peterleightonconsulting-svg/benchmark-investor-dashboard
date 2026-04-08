@@ -14,10 +14,16 @@ const JWT_SECRET = process.env.JWT_SECRET || 'benchmark-secret-2026';
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
+  host: 'smtp.gmail.com',
+  port: 465,
+  secure: true,
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS
+  },
+  tls: {
+    // do not fail on invalid certs
+    rejectUnauthorized: false
   }
 });
 
@@ -66,6 +72,7 @@ app.get('/api/ping', (req, res) => res.json({ status: 'ok', timestamp: new Date(
 // Magic Link Login Route
 app.post('/api/auth/login', express.json(), async (req, res) => {
   const { email } = req.body;
+  console.log(`[AUTH] Login request received for: ${email}`);
   if (!email) return res.status(400).json({ error: 'Email is required' });
 
   let user;
