@@ -419,7 +419,7 @@ export default function App() {
             </tr>
           </thead>
           <tbody>
-            {physioMetrics.filter(p => p.patient_count > 0).map((physio: any, idx: number) => {
+            {physioMetrics.filter(p => p.patient_count > 0).slice(0, 10).map((physio: any, idx: number) => {
               return (
               <tr key={physio.id}>
                 <td style={{ padding: '0.75rem', borderBottom: '1px solid #e5e7eb', textAlign: 'center', fontWeight: 700, color: '#6b7280' }}>

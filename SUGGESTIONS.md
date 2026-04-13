@@ -13,10 +13,10 @@ When instructed to "check suggestions", read this file, implement the requested 
 
 * *(Add your new feature requests here using bullet points!)*
 * Example: "Change the background color of the 'Total Patients' card to light blue."
-Change PROMS leaderboard to only be top 10 physios 
+
 
 ---
 
 ### ✅ Completed
 
-* (Moved here by the AI once implemented)
+* Change PROMS leaderboard to only be top 10 physios 
