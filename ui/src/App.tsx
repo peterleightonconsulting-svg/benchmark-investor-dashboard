@@ -302,7 +302,7 @@ export default function App() {
             </div>
 
             <div style={{ flex: 1, background: '#f9fafb', padding: '1rem', borderRadius: '0.5rem', border: '1px solid #e5e7eb' }}>
-              <div style={{ fontSize: '0.875rem', color: '#6b7280', marginBottom: '0.25rem' }}>Avg Activity Score Change</div>
+              <div style={{ fontSize: '0.875rem', color: '#6b7280', marginBottom: '0.25rem' }}>Avg Function Score Change</div>
               <div style={{ fontSize: '1.5rem', fontWeight: 700 }}>{renderChange(outcomes.proms.activityChange)}</div>
               <div style={{ fontSize: '0.75rem', color: '#9ca3af', marginTop: '0.25rem', marginBottom: '0.5rem' }}>(Positive score is good)</div>
               <div style={{ fontSize: '0.75rem', color: '#4b5563', display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #e5e7eb', paddingTop: '0.5rem' }}>

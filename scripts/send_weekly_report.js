@@ -93,7 +93,7 @@ async function sendWeeklyReport() {
                 <div style="font-size: 10px; color: #166534; margin-top: 4px;">${outcomes.proms.painDistribution.positive}% Improved | ${outcomes.proms.painDistribution.negative}% Worsened</div>
               </td>
               <td style="padding: 15px; background: #f0fdf4; border-radius: 8px; width: 50%; border: 2px solid white;">
-                <div style="font-size: 11px; color: #166534; font-weight: 600; text-transform: uppercase;">Avg Activity Score Change</div>
+                <div style="font-size: 11px; color: #166534; font-weight: 600; text-transform: uppercase;">Avg Function Score Change</div>
                 <div style="font-size: 20px; font-weight: 700; color: #111827; margin-top: 5px;">${outcomes.proms.activityChange > 0 ? '+' : ''}${outcomes.proms.activityChange}</div>
                 <div style="font-size: 10px; color: #166534; margin-top: 4px;">${outcomes.proms.activityDistribution.positive}% Improved | ${outcomes.proms.activityDistribution.negative}% Worsened</div>
               </td>
