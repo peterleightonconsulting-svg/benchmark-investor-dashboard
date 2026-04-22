@@ -190,7 +190,7 @@ export default function App() {
               <div className="metric-icon"><DollarSign size={24} /></div>
               <div className="metric-content">
                 <h3>Revenue (This Month)</h3>
-                <div className="metric-value">${metrics.currentMonthRev}</div>
+                <div className="metric-value">£{metrics.currentMonthRev}</div>
                 <div className="metric-subtitle" style={{ color: metrics.revChangePct >= 0 ? '#10b981' : '#ef4444', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
                   {metrics.revChangePct >= 0 ? '↑' : '↓'} {Math.abs(metrics.revChangePct)}% from last month
                 </div>
@@ -202,7 +202,7 @@ export default function App() {
               <div className="metric-content">
                 <h3>Conversion Rate</h3>
                 <div className="metric-value">{metrics.conversionRate}%</div>
-                <div className="metric-subtitle">ARPU: ${metrics.arpu} (Paid Users)</div>
+                <div className="metric-subtitle">ARPU: £{metrics.arpu} (Paid Users)</div>
               </div>
             </div>
           </>
@@ -329,7 +329,7 @@ export default function App() {
           <div className="metric-icon"><DollarSign size={24} /></div>
           <div className="metric-content">
             <h3>Est. Savings Per Patient</h3>
-            <div className="metric-value">$500 - $1.4k</div>
+            <div className="metric-value">£500 - £1.4k</div>
             <div className="metric-subtitle">Avoided imaging & surgeries*</div>
           </div>
         </div>
@@ -338,8 +338,8 @@ export default function App() {
           <div className="metric-icon"><Users size={24} /></div>
           <div className="metric-content">
             <h3>Current Cohort Value</h3>
-            <div className="metric-value">
-              ${(outcomes.proms.patients * (parseFloat(outcomes.proms.painDistribution.positive) / 100) * 500).toLocaleString(undefined, {maximumFractionDigits: 0})}
+            <div className="metric-value" style={{ color: '#10b981' }}>
+              £{(outcomes.proms.patients * (parseFloat(outcomes.proms.painDistribution.positive) / 100) * 500).toLocaleString(undefined, {maximumFractionDigits: 0})}
             </div>
             <div className="metric-subtitle">Based on {outcomes.proms.painDistribution.positive}% improving</div>
           </div>
@@ -350,7 +350,7 @@ export default function App() {
           <div className="metric-content">
             <h3>Scale Projection (10k)</h3>
             <div className="metric-value">
-              ${(10000 * (parseFloat(outcomes.proms.painDistribution.positive) / 100) * 500 / 1000000).toFixed(2)}M
+              £{(10000 * (parseFloat(outcomes.proms.painDistribution.positive) / 100) * 500 / 1000000).toFixed(2)}M
             </div>
             <div className="metric-subtitle">System-wide savings at 10k users</div>
           </div>
@@ -358,10 +358,10 @@ export default function App() {
       </div>
       
       <div style={{ marginTop: '0.5rem', marginBottom: '2.5rem', fontSize: '0.875rem', color: '#6b7280', padding: '1rem', background: '#f9fafb', borderRadius: '0.5rem', border: '1px solid #e5e7eb' }}>
-        <p style={{ marginBottom: '0.5rem' }}><strong>*Economic Rationale:</strong> Industry research indicates that data-driven MSK physiotherapy interventions (tracked via PROMs) reduce the 90-day utilization of expensive downstream interventions like MRI imaging, injections, and surgical consultations. Reductions in average visit counts for resolving symptoms yield a documented savings of <strong>$193 to $1,411 per patient</strong>. Benchmark’s ability to prove physical capacity increases and pain reduction positions it as a key cost-containment tool for value-based care providers.</p>
+        <p style={{ marginBottom: '0.5rem' }}><strong>*Economic Rationale:</strong> Industry research indicates that data-driven MSK physiotherapy interventions (tracked via PROMs) reduce the 90-day utilization of expensive downstream interventions like MRI imaging, injections, and surgical consultations. Reductions in average visit counts for resolving symptoms yield a documented savings of <strong>£193 to £1,411 per patient</strong>. Benchmark’s ability to prove physical capacity increases and pain reduction positions it as a key cost-containment tool for value-based care providers.</p>
         <p style={{ fontSize: '0.75rem', color: '#9ca3af', borderTop: '1px solid #e5e7eb', paddingTop: '0.5rem', marginTop: '0.5rem' }}>
           <em>Sources: 
-          1. "Cost-effectiveness of tele-physical therapy for musculoskeletal conditions" (NIH/JMIR Formative Research, 2021) - Savings of $193-$1411 per injury.
+          1. "Cost-effectiveness of tele-physical therapy for musculoskeletal conditions" (NIH/JMIR Formative Research, 2021) - Savings of £193-£1411 per injury.
           2. "The impact of patient-reported outcome measures in virtual Integrated Practice Units" (Scholastica, 2022) - Reduction in 90-day imaging/injection utilization.
           </em>
         </p>

@@ -43,7 +43,7 @@ async function sendWeeklyReport() {
               </td>
               <td style="padding: 15px; background: #eef2ff; border-radius: 8px; width: 33%; border: 2px solid white; text-align: center;">
                 <div style="font-size: 11px; color: #4f46e5; font-weight: 600; text-transform: uppercase;">Revenue (This Month)</div>
-                <div style="font-size: 22px; font-weight: 700; color: #111827; margin-top: 5px;">$${metrics.currentMonthRev}</div>
+                <div style="font-size: 22px; font-weight: 700; color: #111827; margin-top: 5px;">£${metrics.currentMonthRev}</div>
                 <div style="font-size: 11px; color: ${metrics.revChangePct >= 0 ? '#10b981' : '#ef4444'}; margin-top: 4px; font-weight: 600;">${metrics.revChangePct >= 0 ? '↑' : '↓'} ${Math.abs(metrics.revChangePct)}% MoM</div>
               </td>
             </tr>
