@@ -251,11 +251,11 @@ app.get('/api/stats', async (req, res) => {
       medianTTV = ttvDays.length % 2 !== 0 ? ttvDays[mid] : (ttvDays[mid - 1] + ttvDays[mid]) / 2;
     }
 
-    // Time-To-Paid (Median days from signup to first payment via business_subscriptions)
+    // Time-To-Paid (Median days from signup to first payment via business_subscriptions, excluding 28-day trial)
     const [ttpRows] = await connection.query(`
       SELECT 
         u.id, 
-        MIN(DATEDIFF(bs.created_at, u.created_at)) as days_to_paid
+        MIN(DATEDIFF(bs.created_at, u.created_at)) - 28 as days_to_paid
       FROM users u
       JOIN business_subscriptions bs ON u.id = bs.business_id
       JOIN subscription_plans sp ON bs.subscription_plan_id = sp.id
@@ -428,7 +428,7 @@ app.get('/api/stats', async (req, res) => {
     };
 
     res.json({
-      metrics: { totalSignups, activeCliniciansCount, totalPatients, wau, mau, conversionRate, arpu, currentMonthRev, revChangePct, avgSessionsPerClinician, avgPatientsPerClinician, longitudinalPct, medianTTV, medianTTP },
+      metrics: { totalSignups, activeCliniciansCount, paidClinicians, totalPatients, wau, mau, conversionRate, arpu, currentMonthRev, revChangePct, avgSessionsPerClinician, avgPatientsPerClinician, longitudinalPct, medianTTV, medianTTP },
       charts: { userGrowth: userGrowth.reverse(), testDomains: testTypes },
       outcomes: { tests: improvementsData, proms: promsData }
     });
