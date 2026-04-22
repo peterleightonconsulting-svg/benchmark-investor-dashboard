@@ -202,7 +202,16 @@ export default function App() {
               <div className="metric-content">
                 <h3>Conversion Rate</h3>
                 <div className="metric-value">{metrics.conversionRate}%</div>
-                <div className="metric-subtitle">ARPU: £{metrics.arpu} (Paid Users)</div>
+                <div className="metric-subtitle">Active to Paid</div>
+              </div>
+            </div>
+
+            <div className="metric-card">
+              <div className="metric-icon"><Users size={24} /></div>
+              <div className="metric-content">
+                <h3>Paid Clinicians</h3>
+                <div className="metric-value">{metrics.paidClinicians}</div>
+                <div className="metric-subtitle">ARPU: £{metrics.arpu}</div>
               </div>
             </div>
           </>
