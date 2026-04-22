@@ -170,19 +170,19 @@ app.get('/api/stats', async (req, res) => {
     }
 
     // Exclusion condition reused across queries
-    let excludeCondition = "users.is_test_account = 0 AND users.email NOT LIKE '%@benchmarkps.org'";
+    let excludeCondition = "users.is_test_account = 0 AND users.email NOT LIKE '%@benchmarkps.org' AND users.email NOT LIKE 'gus@%'";
     if (req.query.physioId) {
       excludeCondition += ` AND users.id = ${connection.escape(req.query.physioId)}`;
     }
     
     // Fallback for queries that don't join users table directly but need physio filtering
-    let userWhereCondition = "is_test_account = 0 AND email NOT LIKE '%@benchmarkps.org'";
+    let userWhereCondition = "is_test_account = 0 AND email NOT LIKE '%@benchmarkps.org' AND email NOT LIKE 'gus@%'";
     if (req.query.physioId) {
       userWhereCondition += ` AND id = ${connection.escape(req.query.physioId)}`;
     }
 
     // Alias for 'u' table
-    let uExcludeCondition = "u.is_test_account = 0 AND u.email NOT LIKE '%@benchmarkps.org'";
+    let uExcludeCondition = "u.is_test_account = 0 AND u.email NOT LIKE '%@benchmarkps.org' AND u.email NOT LIKE 'gus@%'";
     if (req.query.physioId) {
       uExcludeCondition += ` AND u.id = ${connection.escape(req.query.physioId)}`;
     }
@@ -197,7 +197,8 @@ app.get('/api/stats', async (req, res) => {
       SELECT COUNT(DISTINCT bs.business_id) 
       FROM business_subscriptions bs 
       JOIN subscription_plans sp ON bs.subscription_plan_id = sp.id 
-      WHERE bs.subscription_status IN ('active', 'trialing') 
+      JOIN users u ON bs.business_id = u.id
+      WHERE bs.subscription_status IN ('active', 'trialing') AND ${uExcludeCondition}
     `);
     const wau = await queryVal(`SELECT COUNT(DISTINCT patients.doctor_id) FROM patient_test_sessions JOIN patients ON patient_test_sessions.patient_id = patients.id JOIN users ON patients.doctor_id = users.id WHERE patient_test_sessions.created_at >= NOW() - INTERVAL 7 DAY AND ${excludeCondition}`);
     const mau = await queryVal(`SELECT COUNT(DISTINCT patients.doctor_id) FROM patient_test_sessions JOIN patients ON patient_test_sessions.patient_id = patients.id JOIN users ON patients.doctor_id = users.id WHERE patient_test_sessions.created_at >= NOW() - INTERVAL 30 DAY AND ${excludeCondition}`);
@@ -215,7 +216,8 @@ app.get('/api/stats', async (req, res) => {
       SELECT SUM(sp.amount) as total 
       FROM business_subscriptions bs
       JOIN subscription_plans sp ON bs.subscription_plan_id = sp.id
-      WHERE ${subCondition}
+      JOIN users u ON bs.business_id = u.id
+      WHERE ${subCondition} AND ${uExcludeCondition}
     `);
     const currentMonthRev = currentMonthRevQuery[0].total || 0;
     
@@ -254,7 +256,7 @@ app.get('/api/stats', async (req, res) => {
     const [ttpRows] = await connection.query(`
       SELECT 
         u.id, 
-        MIN(DATEDIFF(bs.created_at, u.created_at)) - 28 as days_to_paid
+        MIN(DATEDIFF(bs.created_at, u.created_at)) as days_to_paid
       FROM users u
       JOIN business_subscriptions bs ON u.id = bs.business_id
       JOIN subscription_plans sp ON bs.subscription_plan_id = sp.id
@@ -262,7 +264,7 @@ app.get('/api/stats', async (req, res) => {
       GROUP BY u.id
     `);
     
-    let ttpDays = ttpRows.map(r => r.days_to_paid).filter(d => d >= 0).sort((a, b) => a - b);
+    let ttpDays = ttpRows.map(r => Math.max(0, r.days_to_paid)).sort((a, b) => a - b);
     let medianTTP = 0;
     if (ttpDays.length > 0) {
       const mid = Math.floor(ttpDays.length / 2);
@@ -372,6 +374,9 @@ app.get('/api/stats', async (req, res) => {
     }
     const painChanges = [];
     const activityChanges = [];
+    
+    const painChangesPerWeek = [];
+    const activityChangesPerWeek = [];
 
     const getMeanActivity = (record) => {
       const vals = [record.activity_one_result, record.activity_two_result, record.activity_three_result].filter(v => v !== null);
@@ -390,18 +395,47 @@ app.get('/api/stats', async (req, res) => {
         
         // Applying the rule: At least 3 days apart
         if (daysDiff >= 3) {
+          const weeks = daysDiff / 7 || 1;
+          
           if (first.pain_intensity !== null && last.pain_intensity !== null) {
-            painChanges.push(last.pain_intensity - first.pain_intensity);
+            const change = last.pain_intensity - first.pain_intensity;
+            painChanges.push(change);
+            painChangesPerWeek.push(change / weeks);
           }
           
           const firstMean = getMeanActivity(first);
           const lastMean = getMeanActivity(last);
           if (firstMean !== null && lastMean !== null) {
-            activityChanges.push(lastMean - firstMean);
+            const change = lastMean - firstMean;
+            activityChanges.push(change);
+            activityChangesPerWeek.push(change / weeks);
           }
         }
       }
     }
+
+    if (painChangesPerWeek.length > 0) {
+      improvementsData.push({
+        testName: "Pain Score (PROMs)",
+        category: "Subjective",
+        patients: painChangesPerWeek.length,
+        injuredAvg: (painChangesPerWeek.reduce((a, b) => a + b, 0) / painChangesPerWeek.length).toFixed(2),
+        uninjuredAvg: null,
+        noLatAvg: null
+      });
+    }
+    if (activityChangesPerWeek.length > 0) {
+      improvementsData.push({
+        testName: "Function Score (PROMs)",
+        category: "Subjective",
+        patients: activityChangesPerWeek.length,
+        injuredAvg: (activityChangesPerWeek.reduce((a, b) => a + b, 0) / activityChangesPerWeek.length).toFixed(2),
+        uninjuredAvg: null,
+        noLatAvg: null
+      });
+    }
+
+    improvementsData.sort((a, b) => b.patients - a.patients);
 
     const calcDistribution = (arr) => {
       if (!arr.length) return { positive: 0, neutral: 0, negative: 0 };
