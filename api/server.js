@@ -193,7 +193,13 @@ app.get('/api/stats', async (req, res) => {
     // Adoption & Growth (Excluding test accounts and staff)
     const totalSignups = await queryVal(`SELECT COUNT(*) FROM users WHERE ${userWhereCondition}`);
     const activeCliniciansCount = await queryVal(`SELECT COUNT(DISTINCT patients.doctor_id) FROM patient_test_sessions JOIN patients ON patient_test_sessions.patient_id = patients.id JOIN users ON patients.doctor_id = users.id WHERE ${excludeCondition}`);
-    const paidClinicians = await queryVal(`SELECT COUNT(*) FROM users WHERE (subscribed_status = 1 OR s_transactionId IS NOT NULL) AND ${userWhereCondition}`);
+    const paidClinicians = await queryVal(`
+      SELECT COUNT(DISTINCT bs.business_id) 
+      FROM business_subscriptions bs 
+      JOIN subscription_plans sp ON bs.subscription_plan_id = sp.id 
+      WHERE bs.subscription_status IN ('active', 'trialing') 
+      AND sp.amount > 0
+    `);
     const wau = await queryVal(`SELECT COUNT(DISTINCT patients.doctor_id) FROM patient_test_sessions JOIN patients ON patient_test_sessions.patient_id = patients.id JOIN users ON patients.doctor_id = users.id WHERE patient_test_sessions.created_at >= NOW() - INTERVAL 7 DAY AND ${excludeCondition}`);
     const mau = await queryVal(`SELECT COUNT(DISTINCT patients.doctor_id) FROM patient_test_sessions JOIN patients ON patient_test_sessions.patient_id = patients.id JOIN users ON patients.doctor_id = users.id WHERE patient_test_sessions.created_at >= NOW() - INTERVAL 30 DAY AND ${excludeCondition}`);
     const [userGrowth] = await connection.query(`SELECT DATE_FORMAT(created_at, '%Y-%m') as month, COUNT(*) as count FROM users WHERE ${userWhereCondition} GROUP BY month ORDER BY month DESC LIMIT 6`);
