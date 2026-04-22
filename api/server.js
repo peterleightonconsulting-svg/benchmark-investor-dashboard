@@ -200,28 +200,25 @@ app.get('/api/stats', async (req, res) => {
 
     const conversionRate = activeCliniciansCount > 0 ? ((paidClinicians / activeCliniciansCount) * 100).toFixed(2) : 0;
     
-    // Revenue & ARPU
-    let transactionCondition = "1=1";
+    // Revenue & ARPU (Calculated from active subscriptions)
+    let subCondition = "bs.subscription_status IN ('active', 'trialing')";
     if (req.query.physioId) {
-      transactionCondition = `user_id = ${connection.escape(req.query.physioId)}`;
+      subCondition += ` AND bs.business_id = ${connection.escape(req.query.physioId)}`;
     }
-    const [totalTrans] = await connection.query(`SELECT SUM(amount) as total FROM transactions WHERE ${transactionCondition}`);
-    const totalRevenue = totalTrans[0].total || 0;
-    const arpu = paidClinicians > 0 ? (totalRevenue / paidClinicians).toFixed(2) : 0;
-
-    // Monthly Revenue Comparison
-    const [currentMonthRevQuery] = await connection.query(`SELECT SUM(amount) as total FROM transactions WHERE created_at >= DATE_FORMAT(NOW(), '%Y-%m-01') AND ${transactionCondition}`);
-    const currentMonthRev = currentMonthRevQuery[0].total || 0;
-
-    const [previousMonthRevQuery] = await connection.query(`SELECT SUM(amount) as total FROM transactions WHERE created_at >= DATE_FORMAT(NOW() - INTERVAL 1 MONTH, '%Y-%m-01') AND created_at < DATE_FORMAT(NOW(), '%Y-%m-01') AND ${transactionCondition}`);
-    const previousMonthRev = previousMonthRevQuery[0].total || 0;
     
-    let revChangePct = 0;
-    if (previousMonthRev > 0) {
-      revChangePct = (((currentMonthRev - previousMonthRev) / previousMonthRev) * 100).toFixed(1);
-    } else if (currentMonthRev > 0) {
-      revChangePct = 100; // 100% growth if previous month was 0
-    }
+    const [currentMonthRevQuery] = await connection.query(`
+      SELECT SUM(sp.amount) as total 
+      FROM business_subscriptions bs
+      JOIN subscription_plans sp ON bs.subscription_plan_id = sp.id
+      WHERE ${subCondition}
+    `);
+    const currentMonthRev = currentMonthRevQuery[0].total || 0;
+    
+    // ARPU is MRR divided by paid clinicians
+    const arpu = paidClinicians > 0 ? (currentMonthRev / paidClinicians).toFixed(2) : 0;
+
+    // Historical month-over-month calculation disabled; default to 0%
+    const revChangePct = 0;
 
     // Usage & Engagement (Excluding test accounts via doctor_id)
     const totalSessions = await queryVal(`SELECT COUNT(*) FROM patient_test_sessions JOIN patients ON patient_test_sessions.patient_id = patients.id JOIN users ON patients.doctor_id = users.id WHERE ${excludeCondition}`);
