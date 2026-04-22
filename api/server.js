@@ -198,7 +198,6 @@ app.get('/api/stats', async (req, res) => {
       FROM business_subscriptions bs 
       JOIN subscription_plans sp ON bs.subscription_plan_id = sp.id 
       WHERE bs.subscription_status IN ('active', 'trialing') 
-      AND sp.amount > 0
     `);
     const wau = await queryVal(`SELECT COUNT(DISTINCT patients.doctor_id) FROM patient_test_sessions JOIN patients ON patient_test_sessions.patient_id = patients.id JOIN users ON patients.doctor_id = users.id WHERE patient_test_sessions.created_at >= NOW() - INTERVAL 7 DAY AND ${excludeCondition}`);
     const mau = await queryVal(`SELECT COUNT(DISTINCT patients.doctor_id) FROM patient_test_sessions JOIN patients ON patient_test_sessions.patient_id = patients.id JOIN users ON patients.doctor_id = users.id WHERE patient_test_sessions.created_at >= NOW() - INTERVAL 30 DAY AND ${excludeCondition}`);
@@ -259,7 +258,7 @@ app.get('/api/stats', async (req, res) => {
       FROM users u
       JOIN business_subscriptions bs ON u.id = bs.business_id
       JOIN subscription_plans sp ON bs.subscription_plan_id = sp.id
-      WHERE ${uExcludeCondition} AND bs.subscription_status IN ('active', 'trialing') AND sp.amount > 0
+      WHERE ${uExcludeCondition} AND bs.subscription_status IN ('active', 'trialing')
       GROUP BY u.id
     `);
     
