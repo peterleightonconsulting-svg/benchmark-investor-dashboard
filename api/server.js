@@ -197,7 +197,8 @@ app.get('/api/stats', async (req, res) => {
       SELECT COUNT(DISTINCT bs.business_id) 
       FROM business_subscriptions bs 
       JOIN subscription_plans sp ON bs.subscription_plan_id = sp.id 
-      JOIN users u ON bs.business_id = u.id
+      JOIN businesses b ON bs.business_id = b.id
+      JOIN users u ON b.user_id = u.id
       WHERE bs.subscription_status IN ('active', 'trialing') AND ${uExcludeCondition}
     `);
     const wau = await queryVal(`SELECT COUNT(DISTINCT patients.doctor_id) FROM patient_test_sessions JOIN patients ON patient_test_sessions.patient_id = patients.id JOIN users ON patients.doctor_id = users.id WHERE patient_test_sessions.created_at >= NOW() - INTERVAL 7 DAY AND ${excludeCondition}`);
@@ -216,7 +217,8 @@ app.get('/api/stats', async (req, res) => {
       SELECT SUM(sp.amount) as total 
       FROM business_subscriptions bs
       JOIN subscription_plans sp ON bs.subscription_plan_id = sp.id
-      JOIN users u ON bs.business_id = u.id
+      JOIN businesses b ON bs.business_id = b.id
+      JOIN users u ON b.user_id = u.id
       WHERE ${subCondition} AND ${uExcludeCondition}
     `);
     const currentMonthRev = currentMonthRevQuery[0].total || 0;
@@ -258,7 +260,8 @@ app.get('/api/stats', async (req, res) => {
         u.id, 
         MIN(DATEDIFF(bs.created_at, u.created_at)) as days_to_paid
       FROM users u
-      JOIN business_subscriptions bs ON u.id = bs.business_id
+      JOIN businesses b ON u.id = b.user_id
+      JOIN business_subscriptions bs ON b.id = bs.business_id
       JOIN subscription_plans sp ON bs.subscription_plan_id = sp.id
       WHERE ${uExcludeCondition} AND bs.subscription_status IN ('active', 'trialing')
       GROUP BY u.id
