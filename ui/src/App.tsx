@@ -11,6 +11,7 @@ export default function App() {
   const [lastUpdated, setLastUpdated] = useState<string>('');
   const [physios, setPhysios] = useState<any[]>([]);
   const [selectedPhysio, setSelectedPhysio] = useState<string>('');
+  const [activeTab, setActiveTab] = useState<'investor' | 'physio'>('investor');
   
   // Chatbot State
   const [isChatOpen, setIsChatOpen] = useState(false);
@@ -126,6 +127,20 @@ export default function App() {
           <p>Live metrics from the MVP platform</p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <div style={{ display: 'flex', background: '#f3f4f6', padding: '0.25rem', borderRadius: '2rem', marginRight: '0.5rem' }}>
+            <button 
+              onClick={() => setActiveTab('investor')}
+              style={{ padding: '0.4rem 1.25rem', borderRadius: '2rem', border: 'none', background: activeTab === 'investor' ? 'white' : 'transparent', color: activeTab === 'investor' ? '#111827' : '#6b7280', fontSize: '0.875rem', fontWeight: 600, cursor: 'pointer', boxShadow: activeTab === 'investor' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none' }}
+            >
+              Investor
+            </button>
+            <button 
+              onClick={() => setActiveTab('physio')}
+              style={{ padding: '0.4rem 1.25rem', borderRadius: '2rem', border: 'none', background: activeTab === 'physio' ? 'white' : 'transparent', color: activeTab === 'physio' ? '#111827' : '#6b7280', fontSize: '0.875rem', fontWeight: 600, cursor: 'pointer', boxShadow: activeTab === 'physio' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none' }}
+            >
+              Physio
+            </button>
+          </div>
           {isAdmin && (
             <select 
               value={selectedPhysio} 
@@ -147,6 +162,8 @@ export default function App() {
         </div>
       </header>
 
+      {activeTab === 'investor' && (
+      <>
       <div className="metrics-grid">
         <div className="metric-card">
           <div className="metric-icon"><Users size={24} /></div>
@@ -455,6 +472,196 @@ export default function App() {
           </tbody>
         </table>
       </div>
+      </>
+      )}
+
+      {activeTab === 'physio' && (
+        <div className="physio-dashboard-view">
+          <style>{`
+            .physio-dashboard-view {
+              --primary: #2563eb;
+              --primary-dark: #1e40af;
+              --primary-light: #dbeafe;
+              --success: #10b981;
+              --success-light: #d1fae5;
+              --warning: #f59e0b;
+              --warning-light: #fef3c7;
+              --danger: #ef4444;
+              --bg-primary: #ffffff;
+              --bg-secondary: #f8fafc;
+              --bg-card: #ffffff;
+              --text-primary: #0f172a;
+              --text-secondary: #64748b;
+              --border: #e2e8f0;
+              --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1);
+              --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+              padding-top: 1rem;
+            }
+            .physio-hero {
+              background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+              color: white;
+              padding: 2.5rem 2rem;
+              border-radius: 16px;
+              margin-bottom: 2rem;
+              box-shadow: var(--shadow-lg);
+            }
+            .physio-hero h1 { font-size: 2rem; margin-bottom: 0.5rem; color: white; }
+            .physio-hero p { opacity: 0.9; font-size: 1.1rem; }
+            
+            .physio-stats-grid {
+              display: grid;
+              grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+              gap: 1.5rem;
+              margin-bottom: 2rem;
+            }
+            .physio-hero-card {
+              background: var(--bg-card);
+              padding: 1.5rem;
+              border-radius: 12px;
+              box-shadow: var(--shadow);
+              border: 1px solid var(--border);
+            }
+            .physio-card-label { color: var(--text-secondary); font-size: 0.875rem; font-weight: 600; text-transform: uppercase; margin-bottom: 0.5rem; }
+            .physio-card-value { font-size: 3rem; font-weight: 700; color: var(--primary); line-height: 1; }
+            
+            .physio-section {
+              background: var(--bg-card);
+              padding: 2rem;
+              border-radius: 12px;
+              box-shadow: var(--shadow);
+              border: 1px solid var(--border);
+              margin-bottom: 2rem;
+            }
+            .physio-section-title { font-size: 1.5rem; font-weight: 600; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.5rem; border-bottom: 2px solid var(--border); padding-bottom: 1rem; }
+            
+            .physio-outcome-cards {
+              display: grid;
+              grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+              gap: 1rem;
+              margin-bottom: 2rem;
+            }
+            .physio-outcome-card { text-align: center; padding: 1.25rem; background: var(--bg-secondary); border-radius: 12px; border: 1px solid var(--border); }
+            .physio-outcome-value { font-size: 2.25rem; font-weight: 700; color: var(--success); margin-bottom: 0.25rem; }
+            
+            .physio-table { width: 100%; border-collapse: collapse; }
+            .physio-table th { text-align: left; padding: 0.75rem; color: var(--text-secondary); border-bottom: 2px solid var(--border); font-size: 0.875rem; }
+            .physio-table td { padding: 1rem 0.75rem; border-bottom: 1px solid var(--border); }
+            
+            .physio-action-item {
+              display: flex; align-items: center; justify-content: space-between; padding: 1rem; background: var(--bg-secondary); border-radius: 8px; border-left: 4px solid var(--primary); margin-bottom: 0.75rem;
+            }
+            
+            .physio-capacity-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; }
+            .physio-capacity-card { padding: 1.25rem; background: var(--bg-secondary); border-radius: 8px; border: 1px solid var(--border); }
+          `}</style>
+
+          <div className="physio-hero">
+            <h1>👋 Welcome back!</h1>
+            <p>You're making a real impact. Here's how your clinical practice is performing today.</p>
+          </div>
+
+          <div className="physio-stats-grid">
+            <div className="physio-hero-card">
+              <div className="physio-card-label">Collection Rate (Follow-ups)</div>
+              <div className="physio-card-value">{metrics.longitudinalPct}%</div>
+              <div style={{ marginTop: '1rem', height: '8px', background: '#f1f5f9', borderRadius: '4px' }}>
+                <div style={{ width: `${metrics.longitudinalPct}%`, height: '100%', background: 'var(--success)', borderRadius: '4px' }}></div>
+              </div>
+            </div>
+            <div className="physio-hero-card">
+              <div className="physio-card-label">Patients Improving</div>
+              <div className="physio-card-value">{outcomes.proms.painDistribution.positive}%</div>
+              <div style={{ marginTop: '1rem', height: '8px', background: '#f1f5f9', borderRadius: '4px' }}>
+                <div style={{ width: `${outcomes.proms.painDistribution.positive}%`, height: '100%', background: 'var(--success)', borderRadius: '4px' }}></div>
+              </div>
+            </div>
+          </div>
+
+          <div className="physio-section">
+            <div className="physio-section-title"><span>📈</span> Your Clinical Outcomes</div>
+            <div className="physio-outcome-cards">
+              <div className="physio-outcome-card">
+                <div className="physio-card-label">Avg Function Change</div>
+                <div className="physio-outcome-value">+{outcomes.proms.activityChange}</div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Platform Avg: +1.82</div>
+              </div>
+              <div className="physio-outcome-card">
+                <div className="physio-card-label">Avg Pain Change</div>
+                <div className="physio-outcome-value">+{outcomes.proms.painChange}</div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Platform Avg: +1.21</div>
+              </div>
+              <div className="physio-outcome-card">
+                <div className="physio-card-label">Success Rate</div>
+                <div className="physio-outcome-value">{outcomes.proms.painDistribution.positive}%</div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>MCID Achievement</div>
+              </div>
+              <div className="physio-outcome-card">
+                <div className="physio-card-label">Total Valid Cohort</div>
+                <div className="physio-outcome-value">{outcomes.proms.patients}</div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Patients with follow-up</div>
+              </div>
+            </div>
+
+            <h3 style={{ marginBottom: '1rem' }}>Performance by Body Part</h3>
+            <table className="physio-table">
+              <thead>
+                <tr>
+                  <th>Body Part</th>
+                  <th>Patients</th>
+                  <th>Avg Weekly Change</th>
+                  <th>% Improving</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(outcomes.bodyParts || []).map((bp: any, i: number) => (
+                  <tr key={i}>
+                    <td style={{ fontWeight: 600 }}>{bp.name}</td>
+                    <td>{bp.patientCount}</td>
+                    <td style={{ color: 'var(--success)', fontWeight: 700 }}>+{bp.avgImprovement}</td>
+                    <td>100%</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="physio-section">
+            <div className="physio-section-title"><span>💪</span> Physical Capacity Improvement Rates</div>
+            <div className="physio-capacity-grid">
+              {outcomes.tests.slice(0, 6).map((test: any, i: number) => (
+                <div className="physio-capacity-card" key={i}>
+                  <div className="physio-card-label">{test.testName}</div>
+                  <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--success)', marginBottom: '0.25rem' }}>
+                    +{test.injuredAvg || test.noLatAvg} / week
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                    {test.patients} patients • {test.category}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="physio-section">
+            <div className="physio-section-title"><span>⚡</span> Action Needed</div>
+            {(outcomes.actionItems || []).length === 0 ? (
+              <p style={{ color: 'var(--text-secondary)', textAlign: 'center', padding: '1rem' }}>No patients currently due for follow-up. Great job!</p>
+            ) : (
+              outcomes.actionItems.map((item: any, i: number) => (
+                <div className="physio-action-item" key={i}>
+                  <div>
+                    <div style={{ fontWeight: 600 }}>{item.first_name} {item.last_name}</div>
+                    <div style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>{item.days_since} days since last session</div>
+                  </div>
+                  <button style={{ padding: '0.5rem 1rem', background: 'var(--primary)', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 600, cursor: 'pointer' }}>
+                    Follow Up
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Floating Chat Button */}
       <button 

@@ -343,24 +343,56 @@ app.get('/api/stats', async (req, res) => {
     }
 
     const improvementsData = [];
+    const bodyPartMap = {};
+
     for (const testName in testImprovements) {
       const data = testImprovements[testName];
       const avg = (arr) => arr.length ? (arr.reduce((a, b) => a + b, 0) / arr.length).toFixed(2) : null;
       const n = Math.max(data.injuredChanges.length, data.uninjuredChanges.length, data.noLatChanges.length);
-      if (n >= 1) { // Showing all for now to verify logic
-        improvementsData.push({
+      
+      if (n >= 1) {
+        const result = {
           testName,
           category: data.category,
           patients: n,
           injuredAvg: avg(data.injuredChanges),
           uninjuredAvg: avg(data.uninjuredChanges),
           noLatAvg: avg(data.noLatChanges)
-        });
+        };
+        improvementsData.push(result);
+
+        // Group by Body Part (assumes body part is often in test name or we can extract it)
+        // For a more robust version, we'd use row.body_part_name from the records
+        const bodyPart = data.records[0].body_part_name || 'Other';
+        if (!bodyPartMap[bodyPart]) {
+          bodyPartMap[bodyPart] = { name: bodyPart, patients: new Set(), improvements: [] };
+        }
+        bodyPartMap[bodyPart].patients.add(data.records[0].patient_id);
+        if (result.injuredAvg) bodyPartMap[bodyPart].improvements.push(parseFloat(result.injuredAvg));
       }
     }
+
+    const bodyPartBreakdown = Object.values(bodyPartMap).map(bp => ({
+      name: bp.name,
+      patientCount: bp.patients.size,
+      avgImprovement: bp.improvements.length ? (bp.improvements.reduce((a, b) => a + b, 0) / bp.improvements.length).toFixed(2) : 0
+    })).sort((a, b) => b.patientCount - a.patientCount);
+
     improvementsData.sort((a, b) => b.patients - a.patients);
 
-    // --- Updated PROMs Logic (Min 3 days filter & Mean Activity) ---
+    // --- Action Needed (Patients due for follow-up > 6 weeks since last session) ---
+    const [actionItems] = await connection.query(`
+      SELECT p.first_name, p.last_name, MAX(pts.test_date) as last_test, DATEDIFF(NOW(), MAX(pts.test_date)) as days_since
+      FROM patients p
+      JOIN patient_test_sessions pts ON p.id = pts.patient_id
+      JOIN users u ON p.doctor_id = u.id
+      WHERE ${excludeCondition}
+      GROUP BY p.id
+      HAVING days_since >= 42 AND days_since < 90
+      LIMIT 5
+    `);
+
+    // --- Updated PROMs Logic ---
     const [promsRecords] = await connection.query(`
       SELECT psf.patient_id, psf.created_at, psf.pain_intensity, 
              psf.activity_one_result, psf.activity_two_result, psf.activity_three_result
@@ -466,7 +498,7 @@ app.get('/api/stats', async (req, res) => {
     res.json({
       metrics: { totalSignups, activeCliniciansCount, paidClinicians, totalPatients, wau, mau, conversionRate, arpu, currentMonthRev, revChangePct, avgSessionsPerClinician, avgPatientsPerClinician, longitudinalPct, medianTTV, medianTTP },
       charts: { userGrowth: userGrowth.reverse(), testDomains: testTypes },
-      outcomes: { tests: improvementsData, proms: promsData }
+      outcomes: { tests: improvementsData, proms: promsData, bodyParts: bodyPartBreakdown, actionItems }
     });
   } catch (error) {
     console.error(error);
