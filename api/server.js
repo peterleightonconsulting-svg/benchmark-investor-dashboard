@@ -221,7 +221,7 @@ app.get('/api/stats', async (req, res) => {
       JOIN users u ON b.user_id = u.id
       WHERE ${subCondition} AND ${uExcludeCondition}
     `);
-    const currentMonthRev = currentMonthRevQuery[0].total || 0;
+    const currentMonthRev = (currentMonthRevQuery && currentMonthRevQuery.length > 0) ? (currentMonthRevQuery[0].total || 0) : 0;
     
     // ARPU is MRR divided by paid clinicians
     const arpu = paidClinicians > 0 ? (currentMonthRev / paidClinicians).toFixed(2) : 0;
@@ -277,7 +277,7 @@ app.get('/api/stats', async (req, res) => {
     const [testTypes] = await connection.query(`SELECT tc.name as name, COUNT(ptr.id) as value FROM patient_test_records ptr JOIN test_list tl ON ptr.test_id = tl.id JOIN test_category tc ON tl.test_category_id = tc.id JOIN patient_test_sessions pts ON ptr.patient_test_session_id = pts.id JOIN patients p ON pts.patient_id = p.id JOIN users u ON p.doctor_id = u.id WHERE ${uExcludeCondition} GROUP BY tc.name`);
 
     const [longitudinalData] = await connection.query(`SELECT COUNT(*) as count FROM (SELECT pts.patient_id, COUNT(*) as sessions FROM patient_test_sessions pts JOIN patients p ON pts.patient_id = p.id JOIN users u ON p.doctor_id = u.id WHERE ${uExcludeCondition} GROUP BY pts.patient_id HAVING sessions >= 2) as sub`);
-    const patientsWithMultipleSessions = longitudinalData[0].count;
+    const patientsWithMultipleSessions = (longitudinalData && longitudinalData.length > 0) ? longitudinalData[0].count : 0;
     const longitudinalPct = totalPatients > 0 ? ((patientsWithMultipleSessions / totalPatients) * 100).toFixed(1) : 0;
 
     // --- Updated Physical Improvements Logic ---
@@ -310,14 +310,15 @@ app.get('/api/stats', async (req, res) => {
     const testImprovements = {};
     for (const key in patientTests) {
       const data = patientTests[key];
-      if (data.records.length > 1) {
+      if (data.records && data.records.length > 1) {
         const first = data.records[0];
         const last = data.records[data.records.length - 1];
         const weeks = getWeeksBetween(new Date(first.test_date), new Date(last.test_date)) || 1;
         
         if (!testImprovements[data.test_name]) {
-          testImprovements[data.test_name] = { category: data.category, injuredChanges: [], uninjuredChanges: [], noLatChanges: [] };
+          testImprovements[data.test_name] = { category: data.category, body_part_name: first.body_part_name, injuredChanges: [], uninjuredChanges: [], noLatChanges: [], patientIds: new Set() };
         }
+        testImprovements[data.test_name].patientIds.add(first.patient_id);
 
         // Reclassify Left/Right based on Injured Limb
         const injured = (data.injured_limb || "").toLowerCase();
@@ -361,13 +362,11 @@ app.get('/api/stats', async (req, res) => {
         };
         improvementsData.push(result);
 
-        // Group by Body Part (assumes body part is often in test name or we can extract it)
-        // For a more robust version, we'd use row.body_part_name from the records
-        const bodyPart = data.records[0].body_part_name || 'Other';
+        const bodyPart = data.body_part_name || 'Other';
         if (!bodyPartMap[bodyPart]) {
           bodyPartMap[bodyPart] = { name: bodyPart, patients: new Set(), improvements: [] };
         }
-        bodyPartMap[bodyPart].patients.add(data.records[0].patient_id);
+        data.patientIds.forEach(id => bodyPartMap[bodyPart].patients.add(id));
         if (result.injuredAvg) bodyPartMap[bodyPart].improvements.push(parseFloat(result.injuredAvg));
       }
     }
@@ -386,7 +385,7 @@ app.get('/api/stats', async (req, res) => {
       FROM patients p
       JOIN patient_test_sessions pts ON p.id = pts.patient_id
       JOIN users u ON p.doctor_id = u.id
-      WHERE ${excludeCondition}
+      WHERE ${uExcludeCondition}
       GROUP BY p.id
       HAVING days_since >= 42 AND days_since < 90
       LIMIT 5
@@ -421,7 +420,7 @@ app.get('/api/stats', async (req, res) => {
 
     for (const patientId in patientProms) {
       const records = patientProms[patientId];
-      if (records.length > 1) {
+      if (records && records.length > 1) {
         const first = records[0];
         const last = records[records.length - 1];
         
