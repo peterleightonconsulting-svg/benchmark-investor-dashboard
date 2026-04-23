@@ -622,7 +622,7 @@ export default function App() {
                     <td style={{ fontWeight: 600 }}>{bp.name}</td>
                     <td>{bp.patientCount}</td>
                     <td style={{ color: 'var(--success)', fontWeight: 700 }}>+{bp.avgImprovement}</td>
-                    <td>100%</td>
+                    <td>{bp.pctImproving}%</td>
                   </tr>
                 ))}
               </tbody>
