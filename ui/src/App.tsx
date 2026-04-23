@@ -711,7 +711,12 @@ export default function App() {
           </div>
 
           <div className="physio-section">
-            <div className="physio-section-title"><span>⚡</span> Action Needed</div>
+            <div className="physio-section-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+              <div><span>⚡</span> Action Needed</div>
+              <div style={{ fontSize: '0.875rem', fontWeight: 'normal', color: 'var(--text-secondary)' }}>
+                Suggested Action: Email patient and/or send symptoms form via symptom tab
+              </div>
+            </div>
             {(outcomes.actionItems || []).length === 0 ? (
               <p style={{ color: 'var(--text-secondary)', textAlign: 'center', padding: '1rem' }}>No patients currently due for follow-up. Great job!</p>
             ) : (
@@ -721,9 +726,6 @@ export default function App() {
                     <div style={{ fontWeight: 600 }}>{item.first_name} {item.last_name}</div>
                     <div style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>{item.days_since} days since last session</div>
                   </div>
-                  <button style={{ padding: '0.5rem 1rem', background: 'var(--primary)', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 600, cursor: 'pointer', fontSize: '0.875rem' }}>
-                    Email form
-                  </button>
                 </div>
               ))
             )}
