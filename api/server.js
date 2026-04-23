@@ -284,7 +284,8 @@ app.get('/api/stats', async (req, res) => {
     const [testRecords] = await connection.query(`
       SELECT 
         pts.patient_id, pts.test_date, ptr.test_id, 
-        tl.name AS test_name, tc.name AS category_name, bp.name AS body_part_name,
+        tl.name AS test_name, tc.name AS category_name, bp.name AS test_body_part_name,
+        injury_bp.name AS injury_body_part_name,
         ptr.left, ptr.right, ptr.no_laterality,
         i.injured_limb
       FROM patient_test_records ptr
@@ -295,19 +296,22 @@ app.get('/api/stats', async (req, res) => {
       JOIN test_category tc ON tl.test_category_id = tc.id
       LEFT JOIN body_parts bp ON tl.body_part_id = bp.id
       LEFT JOIN injury i ON pts.patient_id = i.patient_id
+      LEFT JOIN body_parts injury_bp ON i.body_part_id = injury_bp.id
       WHERE ${uExcludeCondition}
       ORDER BY pts.patient_id, ptr.test_id, pts.test_date ASC
     `);
 
     const patientTests = {};
     for (const row of testRecords) {
-      const fullTestName = (row.body_part_name ? row.body_part_name + " " : "") + row.test_name;
+      const fullTestName = (row.test_body_part_name ? row.test_body_part_name + " " : "") + row.test_name;
       const key = row.patient_id + "_" + row.test_id;
-      if (!patientTests[key]) patientTests[key] = { test_name: fullTestName, category: row.category_name, records: [], injured_limb: row.injured_limb };
+      if (!patientTests[key]) patientTests[key] = { test_name: fullTestName, category: row.category_name, records: [], injured_limb: row.injured_limb, injury_body_part_name: row.injury_body_part_name };
       patientTests[key].records.push(row);
     }
 
     const testImprovements = {};
+    const bodyPartMap = {};
+
     for (const key in patientTests) {
       const data = patientTests[key];
       if (data.records && data.records.length > 1) {
@@ -316,35 +320,48 @@ app.get('/api/stats', async (req, res) => {
         const weeks = getWeeksBetween(new Date(first.test_date), new Date(last.test_date)) || 1;
         
         if (!testImprovements[data.test_name]) {
-          testImprovements[data.test_name] = { category: data.category, body_part_name: first.body_part_name, injuredChanges: [], uninjuredChanges: [], noLatChanges: [], patientIds: new Set() };
+          testImprovements[data.test_name] = { category: data.category, injuredChanges: [], uninjuredChanges: [], noLatChanges: [], patientIds: new Set() };
         }
         testImprovements[data.test_name].patientIds.add(first.patient_id);
 
         // Reclassify Left/Right based on Injured Limb
         const injured = (data.injured_limb || "").toLowerCase();
+        let changeForBodyPart = null;
         
         // Handle Left Side
         if (first.left !== null && last.left !== null) {
           const changePerWeek = (last.left - first.left) / weeks;
-          if (injured.includes("left")) testImprovements[data.test_name].injuredChanges.push(changePerWeek);
+          if (injured.includes("left")) { testImprovements[data.test_name].injuredChanges.push(changePerWeek); changeForBodyPart = changePerWeek; }
           else if (injured.includes("right")) testImprovements[data.test_name].uninjuredChanges.push(changePerWeek);
+          else changeForBodyPart = changePerWeek;
         }
 
         // Handle Right Side
         if (first.right !== null && last.right !== null) {
           const changePerWeek = (last.right - first.right) / weeks;
-          if (injured.includes("right")) testImprovements[data.test_name].injuredChanges.push(changePerWeek);
+          if (injured.includes("right")) { testImprovements[data.test_name].injuredChanges.push(changePerWeek); changeForBodyPart = changePerWeek; }
           else if (injured.includes("left")) testImprovements[data.test_name].uninjuredChanges.push(changePerWeek);
+          else if (changeForBodyPart === null) changeForBodyPart = changePerWeek;
         }
 
         if (first.no_laterality !== null && last.no_laterality !== null) {
-          testImprovements[data.test_name].noLatChanges.push((last.no_laterality - first.no_laterality) / weeks);
+          const changePerWeek = (last.no_laterality - first.no_laterality) / weeks;
+          testImprovements[data.test_name].noLatChanges.push(changePerWeek);
+          if (changeForBodyPart === null) changeForBodyPart = changePerWeek;
+        }
+
+        if (changeForBodyPart !== null) {
+          const bodyPart = data.injury_body_part_name || 'Other';
+          if (!bodyPartMap[bodyPart]) {
+            bodyPartMap[bodyPart] = { name: bodyPart, patients: new Set(), improvements: [] };
+          }
+          bodyPartMap[bodyPart].patients.add(first.patient_id);
+          bodyPartMap[bodyPart].improvements.push(changeForBodyPart);
         }
       }
     }
 
     const improvementsData = [];
-    const bodyPartMap = {};
 
     for (const testName in testImprovements) {
       const data = testImprovements[testName];
@@ -361,13 +378,6 @@ app.get('/api/stats', async (req, res) => {
           noLatAvg: avg(data.noLatChanges)
         };
         improvementsData.push(result);
-
-        const bodyPart = data.body_part_name || 'Other';
-        if (!bodyPartMap[bodyPart]) {
-          bodyPartMap[bodyPart] = { name: bodyPart, patients: new Set(), improvements: [] };
-        }
-        data.patientIds.forEach(id => bodyPartMap[bodyPart].patients.add(id));
-        if (result.injuredAvg) bodyPartMap[bodyPart].improvements.push(parseFloat(result.injuredAvg));
       }
     }
 
@@ -418,31 +428,46 @@ app.get('/api/stats', async (req, res) => {
       return vals.reduce((a, b) => a + b, 0) / vals.length;
     };
 
+    let overallImproving = 0;
+    let overallMCID = 0;
+    let validPromPatients = 0;
+
     for (const patientId in patientProms) {
       const records = patientProms[patientId];
       if (records && records.length > 1) {
         const first = records[0];
         const last = records[records.length - 1];
         
-        // Calculate days difference
         const daysDiff = (new Date(last.created_at).getTime() - new Date(first.created_at).getTime()) / (1000 * 60 * 60 * 24);
         
-        // Applying the rule: At least 3 days apart
         if (daysDiff >= 3) {
+          validPromPatients++;
           const weeks = daysDiff / 7 || 1;
           
+          let pChange = null;
           if (first.pain_intensity !== null && last.pain_intensity !== null) {
-            const change = last.pain_intensity - first.pain_intensity;
-            painChanges.push(change);
-            painChangesPerWeek.push(change / weeks);
+            pChange = last.pain_intensity - first.pain_intensity;
+            painChanges.push(pChange);
+            painChangesPerWeek.push(pChange / weeks);
           }
           
           const firstMean = getMeanActivity(first);
           const lastMean = getMeanActivity(last);
+          let aChange = null;
           if (firstMean !== null && lastMean !== null) {
-            const change = lastMean - firstMean;
-            activityChanges.push(change);
-            activityChangesPerWeek.push(change / weeks);
+            aChange = lastMean - firstMean;
+            activityChanges.push(aChange);
+            activityChangesPerWeek.push(aChange / weeks);
+          }
+
+          // Any improvement
+          if ((pChange !== null && pChange > 0) || (aChange !== null && aChange > 0)) {
+            overallImproving++;
+          }
+          
+          // MCID (assuming >= 2 points for either pain or function is clinically significant)
+          if ((pChange !== null && pChange >= 2) || (aChange !== null && aChange >= 2)) {
+            overallMCID++;
           }
         }
       }
@@ -487,7 +512,9 @@ app.get('/api/stats', async (req, res) => {
     };
 
     const promsData = {
-      patients: Math.max(painChanges.length, activityChanges.length),
+      patients: validPromPatients,
+      overallImprovingPct: validPromPatients ? ((overallImproving / validPromPatients) * 100).toFixed(0) : 0,
+      overallMCIDPct: validPromPatients ? ((overallMCID / validPromPatients) * 100).toFixed(0) : 0,
       painChange: painChanges.length ? (painChanges.reduce((a, b) => a + b, 0) / painChanges.length).toFixed(2) : 0,
       activityChange: activityChanges.length ? (activityChanges.reduce((a, b) => a + b, 0) / activityChanges.length).toFixed(2) : 0,
       painDistribution: calcDistribution(painChanges),
