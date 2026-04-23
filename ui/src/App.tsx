@@ -12,6 +12,7 @@ export default function App() {
   const [physios, setPhysios] = useState<any[]>([]);
   const [selectedPhysio, setSelectedPhysio] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'investor' | 'physio'>('investor');
+  const [capacitySearch, setCapacitySearch] = useState('');
   
   // Chatbot State
   const [isChatOpen, setIsChatOpen] = useState(false);
@@ -556,8 +557,8 @@ export default function App() {
           `}</style>
 
           <div className="physio-hero">
-            <h1>👋 Welcome back!</h1>
-            <p>You're making a real impact. Here's how your clinical practice is performing today.</p>
+            <h1>Benchmark Clinical Dashboard</h1>
+            <p>Welcome back! You're making a real impact. Here's how your clinical practice is performing today.</p>
           </div>
 
           <div className="physio-stats-grid">
@@ -570,9 +571,9 @@ export default function App() {
             </div>
             <div className="physio-hero-card">
               <div className="physio-card-label">Patients Improving</div>
-              <div className="physio-card-value">{outcomes.proms.painDistribution.positive}%</div>
+              <div className="physio-card-value">{outcomes.proms.overallImprovingPct}%</div>
               <div style={{ marginTop: '1rem', height: '8px', background: '#f1f5f9', borderRadius: '4px' }}>
-                <div style={{ width: `${outcomes.proms.painDistribution.positive}%`, height: '100%', background: 'var(--success)', borderRadius: '4px' }}></div>
+                <div style={{ width: `${outcomes.proms.overallImprovingPct}%`, height: '100%', background: 'var(--success)', borderRadius: '4px' }}></div>
               </div>
             </div>
           </div>
@@ -591,9 +592,12 @@ export default function App() {
                 <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Platform Avg: +1.21</div>
               </div>
               <div className="physio-outcome-card">
-                <div className="physio-card-label">Success Rate</div>
-                <div className="physio-outcome-value">{outcomes.proms.painDistribution.positive}%</div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>MCID Achievement</div>
+                <div className="physio-card-label" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
+                  Reaching MCID
+                  <span title="Minimum Clinically Important Difference (≥2 points improvement in Pain or Function)" style={{ cursor: 'help', borderBottom: '1px dotted #64748b' }}>*</span>
+                </div>
+                <div className="physio-outcome-value">{outcomes.proms.overallMCIDPct}%</div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Either Pain or Function</div>
               </div>
               <div className="physio-outcome-card">
                 <div className="physio-card-label">Total Valid Cohort</div>
@@ -627,8 +631,23 @@ export default function App() {
 
           <div className="physio-section">
             <div className="physio-section-title"><span>💪</span> Physical Capacity Improvement Rates</div>
+            
+            <div style={{ marginBottom: '1.5rem', position: 'relative' }}>
+              <input 
+                type="text" 
+                placeholder="Search for a test (e.g., 'Hip', 'Flexion')..."
+                value={capacitySearch}
+                onChange={(e) => setCapacitySearch(e.target.value)}
+                style={{ width: '100%', padding: '0.875rem 1rem 0.875rem 2.5rem', borderRadius: '8px', border: '2px solid var(--border)', fontSize: '0.875rem', outline: 'none' }}
+              />
+              <span style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', opacity: 0.5 }}>🔍</span>
+            </div>
+
             <div className="physio-capacity-grid">
-              {outcomes.tests.slice(0, 6).map((test: any, i: number) => (
+              {outcomes.tests
+                .filter((t: any) => t.testName.toLowerCase().includes(capacitySearch.toLowerCase()) || t.category.toLowerCase().includes(capacitySearch.toLowerCase()))
+                .slice(0, capacitySearch ? outcomes.tests.length : 6)
+                .map((test: any, i: number) => (
                 <div className="physio-capacity-card" key={i}>
                   <div className="physio-card-label">{test.testName}</div>
                   <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--success)', marginBottom: '0.25rem' }}>
@@ -640,6 +659,11 @@ export default function App() {
                 </div>
               ))}
             </div>
+            {!capacitySearch && (
+              <div style={{ marginTop: '1rem', padding: '1rem', background: 'var(--bg-secondary)', borderRadius: '8px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
+                💡 <strong>Showing top 6 metrics.</strong> Use search above to find specific tests.
+              </div>
+            )}
           </div>
 
           <div className="physio-section">
@@ -653,8 +677,8 @@ export default function App() {
                     <div style={{ fontWeight: 600 }}>{item.first_name} {item.last_name}</div>
                     <div style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>{item.days_since} days since last session</div>
                   </div>
-                  <button style={{ padding: '0.5rem 1rem', background: 'var(--primary)', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 600, cursor: 'pointer' }}>
-                    Follow Up
+                  <button style={{ padding: '0.5rem 1rem', background: 'var(--primary)', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 600, cursor: 'pointer', fontSize: '0.875rem' }}>
+                    Email form
                   </button>
                 </div>
               ))
