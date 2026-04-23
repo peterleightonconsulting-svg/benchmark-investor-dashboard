@@ -317,46 +317,52 @@ app.get('/api/stats', async (req, res) => {
       if (data.records && data.records.length > 1) {
         const first = data.records[0];
         const last = data.records[data.records.length - 1];
-        const weeks = getWeeksBetween(new Date(first.test_date), new Date(last.test_date)) || 1;
         
-        if (!testImprovements[data.test_name]) {
-          testImprovements[data.test_name] = { category: data.category, injuredChanges: [], uninjuredChanges: [], noLatChanges: [], patientIds: new Set() };
-        }
-        testImprovements[data.test_name].patientIds.add(first.patient_id);
-
-        // Reclassify Left/Right based on Injured Limb
-        const injured = (data.injured_limb || "").toLowerCase();
-        let changeForBodyPart = null;
+        const daysDiff = (new Date(last.test_date).getTime() - new Date(first.test_date).getTime()) / (1000 * 60 * 60 * 24);
         
-        // Handle Left Side
-        if (first.left !== null && last.left !== null) {
-          const changePerWeek = (last.left - first.left) / weeks;
-          if (injured.includes("left")) { testImprovements[data.test_name].injuredChanges.push(changePerWeek); changeForBodyPart = changePerWeek; }
-          else if (injured.includes("right")) testImprovements[data.test_name].uninjuredChanges.push(changePerWeek);
-          else changeForBodyPart = changePerWeek;
-        }
-
-        // Handle Right Side
-        if (first.right !== null && last.right !== null) {
-          const changePerWeek = (last.right - first.right) / weeks;
-          if (injured.includes("right")) { testImprovements[data.test_name].injuredChanges.push(changePerWeek); changeForBodyPart = changePerWeek; }
-          else if (injured.includes("left")) testImprovements[data.test_name].uninjuredChanges.push(changePerWeek);
-          else if (changeForBodyPart === null) changeForBodyPart = changePerWeek;
-        }
-
-        if (first.no_laterality !== null && last.no_laterality !== null) {
-          const changePerWeek = (last.no_laterality - first.no_laterality) / weeks;
-          testImprovements[data.test_name].noLatChanges.push(changePerWeek);
-          if (changeForBodyPart === null) changeForBodyPart = changePerWeek;
-        }
-
-        if (changeForBodyPart !== null) {
-          const bodyPart = data.injury_body_part_name || 'Other';
-          if (!bodyPartMap[bodyPart]) {
-            bodyPartMap[bodyPart] = { name: bodyPart, patients: new Set(), improvements: [] };
+        // Require at least 3 days between first and last test to prevent inflated weekly rates from same-day retries
+        if (daysDiff >= 3) {
+          const weeks = Math.max(daysDiff / 7, 1); // Treat anything under 1 week as 1 week to avoid multiplying changes
+          
+          if (!testImprovements[data.test_name]) {
+            testImprovements[data.test_name] = { category: data.category, injuredChanges: [], uninjuredChanges: [], noLatChanges: [], patientIds: new Set() };
           }
-          bodyPartMap[bodyPart].patients.add(first.patient_id);
-          bodyPartMap[bodyPart].improvements.push(changeForBodyPart);
+          testImprovements[data.test_name].patientIds.add(first.patient_id);
+
+          // Reclassify Left/Right based on Injured Limb
+          const injured = (data.injured_limb || "").toLowerCase();
+          let changeForBodyPart = null;
+          
+          // Handle Left Side
+          if (first.left !== null && last.left !== null) {
+            const changePerWeek = (last.left - first.left) / weeks;
+            if (injured.includes("left")) { testImprovements[data.test_name].injuredChanges.push(changePerWeek); changeForBodyPart = changePerWeek; }
+            else if (injured.includes("right")) testImprovements[data.test_name].uninjuredChanges.push(changePerWeek);
+            else changeForBodyPart = changePerWeek;
+          }
+
+          // Handle Right Side
+          if (first.right !== null && last.right !== null) {
+            const changePerWeek = (last.right - first.right) / weeks;
+            if (injured.includes("right")) { testImprovements[data.test_name].injuredChanges.push(changePerWeek); changeForBodyPart = changePerWeek; }
+            else if (injured.includes("left")) testImprovements[data.test_name].uninjuredChanges.push(changePerWeek);
+            else if (changeForBodyPart === null) changeForBodyPart = changePerWeek;
+          }
+
+          if (first.no_laterality !== null && last.no_laterality !== null) {
+            const changePerWeek = (last.no_laterality - first.no_laterality) / weeks;
+            testImprovements[data.test_name].noLatChanges.push(changePerWeek);
+            if (changeForBodyPart === null) changeForBodyPart = changePerWeek;
+          }
+
+          if (changeForBodyPart !== null) {
+            const bodyPart = data.injury_body_part_name || 'Other';
+            if (!bodyPartMap[bodyPart]) {
+              bodyPartMap[bodyPart] = { name: bodyPart, patients: new Set(), improvements: [] };
+            }
+            bodyPartMap[bodyPart].patients.add(first.patient_id);
+            bodyPartMap[bodyPart].improvements.push(changeForBodyPart);
+          }
         }
       }
     }
@@ -381,11 +387,16 @@ app.get('/api/stats', async (req, res) => {
       }
     }
 
-    const bodyPartBreakdown = Object.values(bodyPartMap).map(bp => ({
-      name: bp.name,
-      patientCount: bp.patients.size,
-      avgImprovement: bp.improvements.length ? (bp.improvements.reduce((a, b) => a + b, 0) / bp.improvements.length).toFixed(2) : 0
-    })).sort((a, b) => b.patientCount - a.patientCount);
+    const bodyPartBreakdown = Object.values(bodyPartMap).map(bp => {
+      const improvingCount = bp.improvements.filter(val => val > 0).length;
+      const pctImproving = bp.improvements.length ? ((improvingCount / bp.improvements.length) * 100).toFixed(0) : 0;
+      return {
+        name: bp.name,
+        patientCount: bp.patients.size,
+        avgImprovement: bp.improvements.length ? (bp.improvements.reduce((a, b) => a + b, 0) / bp.improvements.length).toFixed(2) : 0,
+        pctImproving
+      };
+    }).sort((a, b) => b.patientCount - a.patientCount);
 
     improvementsData.sort((a, b) => b.patients - a.patients);
 
