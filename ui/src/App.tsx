@@ -554,6 +554,48 @@ export default function App() {
             
             .physio-capacity-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; }
             .physio-capacity-card { padding: 1.25rem; background: var(--bg-secondary); border-radius: 8px; border: 1px solid var(--border); }
+            
+            .custom-tooltip {
+              position: relative;
+              display: inline-block;
+              cursor: help;
+              border-bottom: 1px dotted #64748b;
+              margin-left: 4px;
+            }
+            .custom-tooltip .tooltip-text {
+              visibility: hidden;
+              width: 250px;
+              background-color: #1e293b;
+              color: #fff;
+              text-align: center;
+              border-radius: 6px;
+              padding: 0.75rem;
+              position: absolute;
+              z-index: 1000;
+              bottom: 125%;
+              left: 50%;
+              margin-left: -125px;
+              opacity: 0;
+              transition: opacity 0.2s;
+              font-size: 0.75rem;
+              font-weight: normal;
+              box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+              pointer-events: none;
+            }
+            .custom-tooltip .tooltip-text::after {
+              content: "";
+              position: absolute;
+              top: 100%;
+              left: 50%;
+              margin-left: -5px;
+              border-width: 5px;
+              border-style: solid;
+              border-color: #1e293b transparent transparent transparent;
+            }
+            .custom-tooltip:hover .tooltip-text {
+              visibility: visible;
+              opacity: 1;
+            }
           `}</style>
 
           <div className="physio-hero">
@@ -594,7 +636,9 @@ export default function App() {
               <div className="physio-outcome-card">
                 <div className="physio-card-label" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
                   Reaching MCID
-                  <span title="Minimum Clinically Important Difference (≥2 points improvement in Pain or Function)" style={{ cursor: 'help', borderBottom: '1px dotted #64748b' }}>*</span>
+                  <div className="custom-tooltip">*
+                    <span className="tooltip-text">Minimum Clinically Important Difference (≥2 points improvement in Pain or Function)</span>
+                  </div>
                 </div>
                 <div className="physio-outcome-value">{outcomes.proms.overallMCIDPct}%</div>
                 <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Either Pain or Function</div>
