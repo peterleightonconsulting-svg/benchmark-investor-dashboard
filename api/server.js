@@ -310,7 +310,6 @@ app.get('/api/stats', async (req, res) => {
     }
 
     const testImprovements = {};
-    const bodyPartMap = {};
 
     for (const key in patientTests) {
       const data = patientTests[key];
@@ -376,17 +375,6 @@ app.get('/api/stats', async (req, res) => {
         improvementsData.push(result);
       }
     }
-
-    const bodyPartBreakdown = Object.values(bodyPartMap).map(bp => {
-      const improvingCount = bp.improvements.filter(val => val > 0).length;
-      const pctImproving = bp.improvements.length ? ((improvingCount / bp.improvements.length) * 100).toFixed(0) : 0;
-      return {
-        name: bp.name,
-        patientCount: bp.patients.size,
-        avgImprovement: bp.improvements.length ? (bp.improvements.reduce((a, b) => a + b, 0) / bp.improvements.length).toFixed(2) : 0,
-        pctImproving
-      };
-    }).sort((a, b) => b.patientCount - a.patientCount);
 
     improvementsData.sort((a, b) => b.patients - a.patients);
 
