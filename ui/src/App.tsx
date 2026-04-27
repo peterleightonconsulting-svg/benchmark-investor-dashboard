@@ -614,8 +614,17 @@ export default function App() {
             <div className="physio-hero-card">
               <div className="physio-card-label">Patients Improving</div>
               <div className="physio-card-value">{outcomes.proms.overallImprovingPct}%</div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Either pain or function</div>
               <div style={{ marginTop: '1rem', height: '8px', background: '#f1f5f9', borderRadius: '4px' }}>
                 <div style={{ width: `${outcomes.proms.overallImprovingPct}%`, height: '100%', background: 'var(--success)', borderRadius: '4px' }}></div>
+              </div>
+            </div>
+            <div className="physio-hero-card">
+              <div className="physio-card-label">Improving in Both</div>
+              <div className="physio-card-value">{outcomes.proms.overallImprovingBothPct}%</div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Both pain and function</div>
+              <div style={{ marginTop: '1rem', height: '8px', background: '#f1f5f9', borderRadius: '4px' }}>
+                <div style={{ width: `${outcomes.proms.overallImprovingBothPct}%`, height: '100%', background: 'var(--success)', borderRadius: '4px' }}></div>
               </div>
             </div>
           </div>
@@ -656,7 +665,8 @@ export default function App() {
                 <tr>
                   <th>Body Part</th>
                   <th>Patients</th>
-                  <th>Avg Weekly Change</th>
+                  <th>Avg Pain Change</th>
+                  <th>Avg Function Change</th>
                   <th>% Improving</th>
                 </tr>
               </thead>
@@ -665,7 +675,8 @@ export default function App() {
                   <tr key={i}>
                     <td style={{ fontWeight: 600 }}>{bp.name}</td>
                     <td>{bp.patientCount}</td>
-                    <td style={{ color: 'var(--success)', fontWeight: 700 }}>+{bp.avgImprovement}</td>
+                    <td style={{ fontWeight: 700 }}>{renderChange(bp.avgPain)}</td>
+                    <td style={{ fontWeight: 700 }}>{renderChange(bp.avgFunction)}</td>
                     <td>{bp.pctImproving}%</td>
                   </tr>
                 ))}
@@ -695,7 +706,7 @@ export default function App() {
                 <div className="physio-capacity-card" key={i}>
                   <div className="physio-card-label">{test.testName}</div>
                   <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--success)', marginBottom: '0.25rem' }}>
-                    +{test.injuredAvg || test.noLatAvg} / week
+                    {renderChange(test.injuredAvg || test.noLatAvg)} / week
                   </div>
                   <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
                     {test.patients} patients • {test.category}

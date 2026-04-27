@@ -352,16 +352,6 @@ app.get('/api/stats', async (req, res) => {
           if (first.no_laterality !== null && last.no_laterality !== null) {
             const changePerWeek = (last.no_laterality - first.no_laterality) / weeks;
             testImprovements[data.test_name].noLatChanges.push(changePerWeek);
-            if (changeForBodyPart === null) changeForBodyPart = changePerWeek;
-          }
-
-          if (changeForBodyPart !== null) {
-            const bodyPart = data.injury_body_part_name || 'Other';
-            if (!bodyPartMap[bodyPart]) {
-              bodyPartMap[bodyPart] = { name: bodyPart, patients: new Set(), improvements: [] };
-            }
-            bodyPartMap[bodyPart].patients.add(first.patient_id);
-            bodyPartMap[bodyPart].improvements.push(changeForBodyPart);
           }
         }
       }
@@ -415,10 +405,13 @@ app.get('/api/stats', async (req, res) => {
     // --- Updated PROMs Logic ---
     const [promsRecords] = await connection.query(`
       SELECT psf.patient_id, psf.created_at, psf.pain_intensity, 
-             psf.activity_one_result, psf.activity_two_result, psf.activity_three_result
+             psf.activity_one_result, psf.activity_two_result, psf.activity_three_result,
+             bp.name as body_part_name
       FROM patient_symptoms_form psf
       JOIN patients p ON psf.patient_id = p.id
       JOIN users u ON p.doctor_id = u.id
+      LEFT JOIN injury i ON p.id = i.patient_id
+      LEFT JOIN body_parts bp ON i.body_part_id = bp.id
       WHERE ${uExcludeCondition}
       ORDER BY psf.patient_id, psf.created_at ASC
     `);
@@ -440,8 +433,10 @@ app.get('/api/stats', async (req, res) => {
     };
 
     let overallImproving = 0;
+    let overallImprovingBoth = 0;
     let overallMCID = 0;
     let validPromPatients = 0;
+    const bodyPartMap = {};
 
     for (const patientId in patientProms) {
       const records = patientProms[patientId];
@@ -472,17 +467,47 @@ app.get('/api/stats', async (req, res) => {
           }
 
           // Any improvement
-          if ((pChange !== null && pChange > 0) || (aChange !== null && aChange > 0)) {
+          const isPainImproving = pChange !== null && pChange > 0;
+          const isActImproving = aChange !== null && aChange > 0;
+
+          if (isPainImproving || isActImproving) {
             overallImproving++;
+          }
+          if (isPainImproving && isActImproving) {
+            overallImprovingBoth++;
           }
           
           // MCID (assuming >= 2 points for either pain or function is clinically significant)
           if ((pChange !== null && pChange >= 2) || (aChange !== null && aChange >= 2)) {
             overallMCID++;
           }
+
+          // Body Part tracking
+          const bodyPart = first.body_part_name || 'Other';
+          if (!bodyPartMap[bodyPart]) {
+             bodyPartMap[bodyPart] = { name: bodyPart, patients: new Set(), pChanges: [], aChanges: [], improvingCount: 0 };
+          }
+          bodyPartMap[bodyPart].patients.add(patientId);
+          if (pChange !== null) bodyPartMap[bodyPart].pChanges.push(pChange);
+          if (aChange !== null) bodyPartMap[bodyPart].aChanges.push(aChange);
+          if (isPainImproving || isActImproving) bodyPartMap[bodyPart].improvingCount++;
         }
       }
     }
+
+    const bodyPartBreakdown = Object.values(bodyPartMap).map(bp => {
+      const totalValid = Math.max(bp.pChanges.length, bp.aChanges.length) || 1;
+      const pctImproving = ((bp.improvingCount / totalValid) * 100).toFixed(0);
+      const avgPain = bp.pChanges.length ? (bp.pChanges.reduce((a, b) => a + b, 0) / bp.pChanges.length).toFixed(2) : "-";
+      const avgAct = bp.aChanges.length ? (bp.aChanges.reduce((a, b) => a + b, 0) / bp.aChanges.length).toFixed(2) : "-";
+      return {
+        name: bp.name,
+        patientCount: bp.patients.size,
+        avgPain,
+        avgFunction: avgAct,
+        pctImproving
+      };
+    }).sort((a, b) => b.patientCount - a.patientCount);
 
     if (painChangesPerWeek.length > 0) {
       improvementsData.push({
@@ -525,6 +550,7 @@ app.get('/api/stats', async (req, res) => {
     const promsData = {
       patients: validPromPatients,
       overallImprovingPct: validPromPatients ? ((overallImproving / validPromPatients) * 100).toFixed(0) : 0,
+      overallImprovingBothPct: validPromPatients ? ((overallImprovingBoth / validPromPatients) * 100).toFixed(0) : 0,
       overallMCIDPct: validPromPatients ? ((overallMCID / validPromPatients) * 100).toFixed(0) : 0,
       painChange: painChanges.length ? (painChanges.reduce((a, b) => a + b, 0) / painChanges.length).toFixed(2) : 0,
       activityChange: activityChanges.length ? (activityChanges.reduce((a, b) => a + b, 0) / activityChanges.length).toFixed(2) : 0,
