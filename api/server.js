@@ -384,7 +384,7 @@ app.get('/api/stats', async (req, res) => {
       FROM patients p
       JOIN patient_test_sessions pts ON p.id = pts.patient_id
       JOIN users u ON p.doctor_id = u.id
-      WHERE ${uExcludeCondition}
+      WHERE ${uExcludeCondition} AND p.is_archived = 0
       GROUP BY p.id
       HAVING days_since >= 42 AND days_since < 90
       LIMIT 5
