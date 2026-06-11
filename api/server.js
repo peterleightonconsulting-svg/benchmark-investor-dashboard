@@ -813,6 +813,170 @@ app.get('/api/scatter', async (req, res) => {
   }
 });
 
+app.get('/api/test-proms', async (req, res) => {
+  let connection;
+  try {
+    connection = await mysql.createConnection({
+      host: process.env.DB_HOST || '127.0.0.1',
+      port: process.env.DB_PORT || 3307,
+      user: process.env.DB_USER || 'benchmark2026',
+      password: process.env.DB_PASSWORD || 'Benchmark941!!',
+      database: process.env.DB_NAME || 'benchmark-mysql',
+      ssl: process.env.DB_HOST ? { rejectUnauthorized: false } : null,
+      connectTimeout: 10000,
+    });
+
+    const EXCLUDE = `u.is_test_account = 0 AND u.email NOT LIKE '%@benchmarkps.org' AND u.email NOT LIKE 'gus@%'`;
+
+    const [promsRows] = await connection.execute(`
+      SELECT psf.patient_id, psf.created_at, psf.pain_intensity,
+             psf.activity_one_result, psf.activity_two_result, psf.activity_three_result
+      FROM patient_symptoms_form psf
+      JOIN patients p ON psf.patient_id = p.id
+      JOIN users u ON p.doctor_id = u.id
+      WHERE ${EXCLUDE}
+      ORDER BY psf.patient_id, psf.created_at ASC
+    `);
+
+    const [testRows] = await connection.execute(`
+      SELECT pts.patient_id, pts.id AS session_id, pts.created_at AS session_date,
+             ptr.test_id, ptr.left AS score_left, ptr.right AS score_right, ptr.no_laterality,
+             tl.name AS test_name, tc.name AS category
+      FROM patient_test_sessions pts
+      JOIN patients p ON pts.patient_id = p.id
+      JOIN users u ON p.doctor_id = u.id
+      JOIN patient_test_records ptr ON ptr.patient_test_session_id = pts.id
+      JOIN test_list tl ON ptr.test_id = tl.id
+      JOIN test_category tc ON tl.test_category_id = tc.id
+      WHERE ${EXCLUDE}
+      ORDER BY pts.patient_id, pts.created_at ASC
+    `);
+
+    // Build PROMs deltas
+    const promsMap = {};
+    for (const row of promsRows) {
+      if (!promsMap[row.patient_id]) promsMap[row.patient_id] = [];
+      promsMap[row.patient_id].push(row);
+    }
+    const promsDeltas = {};
+    for (const [pid, rows] of Object.entries(promsMap)) {
+      if (rows.length < 2) continue;
+      const first = rows[0], last = rows[rows.length - 1];
+      const days = (new Date(last.created_at) - new Date(first.created_at)) / 86400000;
+      if (days < 3) continue;
+      const bp = first.pain_intensity, lp = last.pain_intensity;
+      const bfVals = [first.activity_one_result, first.activity_two_result, first.activity_three_result].filter(v => v !== null);
+      const lfVals = [last.activity_one_result, last.activity_two_result, last.activity_three_result].filter(v => v !== null);
+      if (bp === null || lp === null || !bfVals.length || !lfVals.length) continue;
+      const bf = bfVals.reduce((s, v) => s + v, 0) / bfVals.length;
+      const lf = lfVals.reduce((s, v) => s + v, 0) / lfVals.length;
+      promsDeltas[parseInt(pid)] = {
+        deltaPain: parseFloat((lp - bp).toFixed(2)),
+        deltaFunction: parseFloat((lf - bf).toFixed(2)),
+      };
+    }
+
+    // Build test sessions per patient
+    const patientSessions = {};
+    for (const row of testRows) {
+      const pid = row.patient_id;
+      if (!patientSessions[pid]) patientSessions[pid] = {};
+      const sid = row.session_id;
+      if (!patientSessions[pid][sid]) {
+        patientSessions[pid][sid] = { date: new Date(row.session_date), tests: {} };
+      }
+      const sl = row.score_left !== null ? parseFloat(row.score_left) : null;
+      const sr = row.score_right !== null ? parseFloat(row.score_right) : null;
+      const sn = row.no_laterality !== null ? parseFloat(row.no_laterality) : null;
+      const score = (sl !== null && sr !== null) ? (sl + sr) / 2
+                  : sl !== null ? sl
+                  : sr !== null ? sr
+                  : sn;
+      if (score !== null && !isNaN(score)) {
+        patientSessions[pid][sid].tests[row.test_id] = { score, category: row.category, testName: row.test_name };
+      }
+    }
+
+    // Compute per-test deltas (first → last session) for patients with both data
+    const testDeltas = {};
+    for (const [pid, sessMap] of Object.entries(patientSessions)) {
+      const pidInt = parseInt(pid);
+      if (!promsDeltas[pidInt]) continue;
+      const sessions = Object.values(sessMap).sort((a, b) => a.date - b.date);
+      if (sessions.length < 2) continue;
+      const first = sessions[0], last = sessions[sessions.length - 1];
+      for (const testId of Object.keys(first.tests)) {
+        if (!last.tests[testId]) continue;
+        const delta = last.tests[testId].score - first.tests[testId].score;
+        const { category, testName } = first.tests[testId];
+        if (!testDeltas[testId]) testDeltas[testId] = { testName, category, deltas: [] };
+        testDeltas[testId].deltas.push({ pid: pidInt, delta });
+      }
+    }
+
+    // Z-score each test's deltas, accumulate per-patient composite
+    const patientZScores = {};
+    for (const info of Object.values(testDeltas)) {
+      if (info.deltas.length < 4) continue;
+      const vals = info.deltas.map(d => d.delta);
+      const mean = vals.reduce((s, v) => s + v, 0) / vals.length;
+      const std = Math.sqrt(vals.reduce((s, v) => s + (v - mean) ** 2, 0) / vals.length);
+      if (std < 0.001) continue;
+      for (const { pid, delta } of info.deltas) {
+        const z = (delta - mean) / std;
+        if (!patientZScores[pid]) patientZScores[pid] = { all: [], byCategory: {} };
+        patientZScores[pid].all.push(z);
+        if (!patientZScores[pid].byCategory[info.category]) patientZScores[pid].byCategory[info.category] = [];
+        patientZScores[pid].byCategory[info.category].push(z);
+      }
+    }
+
+    // Build scatter points and category buckets
+    const scatterPoints = [];
+    const categoryBuckets = {};
+    for (const [pid, zData] of Object.entries(patientZScores)) {
+      const pidInt = parseInt(pid);
+      const proms = promsDeltas[pidInt];
+      if (!proms) continue;
+      const compositeZ = parseFloat((zData.all.reduce((s, v) => s + v, 0) / zData.all.length).toFixed(3));
+      scatterPoints.push({ compositeZ, deltaPain: proms.deltaPain, deltaFunction: proms.deltaFunction });
+      for (const [cat, zs] of Object.entries(zData.byCategory)) {
+        if (!categoryBuckets[cat]) categoryBuckets[cat] = [];
+        categoryBuckets[cat].push({
+          compositeZ: parseFloat((zs.reduce((s, v) => s + v, 0) / zs.length).toFixed(3)),
+          deltaPain: proms.deltaPain,
+          deltaFunction: proms.deltaFunction,
+        });
+      }
+    }
+
+    if (scatterPoints.length < 5) {
+      return res.json({ total: scatterPoints.length, insufficient: true, byCategory: [], scatterPoints: [] });
+    }
+
+    const overallCorrPain = pearsonCorrelation(scatterPoints.map(p => p.compositeZ), scatterPoints.map(p => p.deltaPain));
+    const overallCorrFunction = pearsonCorrelation(scatterPoints.map(p => p.compositeZ), scatterPoints.map(p => p.deltaFunction));
+
+    const byCategory = Object.entries(categoryBuckets)
+      .filter(([, pts]) => pts.length >= 4)
+      .map(([cat, pts]) => ({
+        category: cat,
+        n: pts.length,
+        corrWithPain: pearsonCorrelation(pts.map(p => p.compositeZ), pts.map(p => p.deltaPain)),
+        corrWithFunction: pearsonCorrelation(pts.map(p => p.compositeZ), pts.map(p => p.deltaFunction)),
+      }))
+      .sort((a, b) => b.n - a.n);
+
+    res.json({ total: scatterPoints.length, overallCorrPain, overallCorrFunction, byCategory, scatterPoints });
+
+  } catch (err) {
+    console.error('/api/test-proms error:', err);
+    res.status(500).json({ error: err.message });
+  } finally {
+    if (connection) await connection.end();
+  }
+});
+
 app.get('/api/regression', (req, res) => {
   const filePath = path.join(__dirname, 'regression_results.json');
   if (!fs.existsSync(filePath)) {

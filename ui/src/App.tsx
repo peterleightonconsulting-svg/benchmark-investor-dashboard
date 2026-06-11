@@ -170,6 +170,7 @@ export default function App() {
   const [corrData, setCorrData] = useState<any>(null);
   const [scatterData, setScatterData] = useState<any>(null);
   const [regressionData, setRegressionData] = useState<any>(null);
+  const [testPromsData, setTestPromsData] = useState<any>(null);
   
   // Chatbot State
   const [isChatOpen, setIsChatOpen] = useState(false);
@@ -251,6 +252,13 @@ export default function App() {
     fetch('/api/regression')
       .then(res => res.ok ? res.json() : null)
       .then(res => res && setRegressionData(res))
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    fetch('/api/test-proms')
+      .then(res => res.ok ? res.json() : null)
+      .then(res => res && !res.insufficient && setTestPromsData(res))
       .catch(() => {});
   }, []);
 
@@ -1087,6 +1095,112 @@ export default function App() {
                 data={sortBuckets(corrData.byBasePain || [], ['Severe Pain (0-3)', 'Moderate Pain (4-6)', 'Mild Pain (7-10)'])}
                 note="Baseline pain score (0=most pain, 10=least pain on app scale)"
               />
+            </div>
+          )}
+
+          {/* Objective Tests vs PROMs */}
+          {testPromsData && (
+            <div style={{ marginTop: '2.5rem' }}>
+              <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#111827', marginBottom: '0.5rem' }}>Objective Tests vs PROMs</h2>
+              <p style={{ fontSize: '0.875rem', color: '#6b7280', marginBottom: '1.5rem', background: '#f9fafb', padding: '0.75rem 1rem', borderRadius: '0.5rem', border: '1px solid #e5e7eb' }}>
+                <strong>Do objective test score improvements track with patient-reported outcomes?</strong> For each patient with 2+ test sessions and 2+ PROMs submissions, test deltas are z-scored within each test type and averaged into a composite. Pearson r then measures alignment with PROMs change. n = {testPromsData.total} patients.
+              </p>
+
+              {/* Summary cards */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
+                <div className="metric-card">
+                  <div className="metric-icon"><Activity size={24} /></div>
+                  <div className="metric-content">
+                    <h3>Test → Pain</h3>
+                    <div className="metric-value">r = {testPromsData.overallCorrPain}</div>
+                    <div className="metric-subtitle">{Math.abs(testPromsData.overallCorrPain) > 0.5 ? 'Strong' : Math.abs(testPromsData.overallCorrPain) > 0.3 ? 'Moderate' : 'Weak'} correlation</div>
+                  </div>
+                </div>
+                <div className="metric-card">
+                  <div className="metric-icon"><TrendingUp size={24} /></div>
+                  <div className="metric-content">
+                    <h3>Test → Function</h3>
+                    <div className="metric-value">r = {testPromsData.overallCorrFunction}</div>
+                    <div className="metric-subtitle">{Math.abs(testPromsData.overallCorrFunction) > 0.5 ? 'Strong' : Math.abs(testPromsData.overallCorrFunction) > 0.3 ? 'Moderate' : 'Weak'} correlation</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Category correlations + scatter side by side */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(380px, 1fr))', gap: '1.5rem' }}>
+
+                {/* Correlation by category */}
+                {testPromsData.byCategory.length > 0 && (
+                  <div className="chart-card">
+                    <h3 style={{ marginBottom: '0.25rem' }}>Correlation by Test Category</h3>
+                    <p style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '1rem' }}>Pearson r between test improvement and PROMs change, per category</p>
+                    <div style={{ height: Math.max(160, testPromsData.byCategory.length * 60 + 40) }}>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart
+                          data={testPromsData.byCategory.map((c: any) => ({ name: c.category, Pain: c.corrWithPain, Function: c.corrWithFunction, n: c.n }))}
+                          layout="vertical"
+                          margin={{ top: 5, right: 20, bottom: 5, left: 10 }}
+                        >
+                          <XAxis type="number" domain={[-1, 1]} tick={{ fontSize: 11 }} tickFormatter={(v: number) => v.toFixed(1)} />
+                          <YAxis type="category" dataKey="name" width={130} tick={{ fontSize: 11 }} />
+                          <RechartsTooltip
+                            formatter={(val: any, name: string, props: any) => [`r = ${val} (n=${props.payload.n})`, name]}
+                          />
+                          <ReferenceLine x={0} stroke="#d1d5db" />
+                          <Bar dataKey="Pain" name="Pain" fill="#ef4444" radius={[0, 3, 3, 0]} />
+                          <Bar dataKey="Function" name="Function" fill="#10b981" radius={[0, 3, 3, 0]} />
+                          <Legend wrapperStyle={{ fontSize: '0.75rem' }} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                )}
+
+                {/* Scatter: composite test z vs pain */}
+                {(() => {
+                  const pts = testPromsData.scatterPoints as any[];
+                  const reg = linearReg(pts.map((p: any) => ({ x: p.compositeZ, y: p.deltaPain })));
+                  const xs = pts.map((p: any) => p.compositeZ);
+                  const minX = Math.min(...xs), maxX = Math.max(...xs);
+                  const trendLine = [
+                    { compositeZ: minX, deltaPain: parseFloat((reg.m * minX + reg.b).toFixed(2)) },
+                    { compositeZ: maxX, deltaPain: parseFloat((reg.m * maxX + reg.b).toFixed(2)) },
+                  ];
+                  return (
+                    <div className="chart-card">
+                      <h3 style={{ marginBottom: '0.25rem' }}>Composite Test Score vs Δ Pain</h3>
+                      <p style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '1rem' }}>
+                        r = {testPromsData.overallCorrPain} · R² = {reg.r2} · X axis = standardised composite test improvement
+                      </p>
+                      <div style={{ height: 280 }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                          <ScatterChart margin={{ top: 10, right: 20, bottom: 35, left: 10 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+                            <XAxis type="number" dataKey="compositeZ" name="Composite Test Δ (z)" tick={{ fontSize: 11 }} label={{ value: 'Composite Test Improvement (z-score)', position: 'insideBottom', offset: -22, fontSize: 11, fill: '#6b7280' }} />
+                            <YAxis type="number" dataKey="deltaPain" name="Δ Pain" tick={{ fontSize: 11 }} label={{ value: 'Δ Pain', angle: -90, position: 'insideLeft', fontSize: 11, fill: '#6b7280' }} />
+                            <ZAxis range={[40, 40]} />
+                            <RechartsTooltip content={({ active, payload }: any) => {
+                              if (!active || !payload?.length) return null;
+                              const d = payload[0].payload;
+                              if (d.deltaPain === undefined) return null;
+                              return (
+                                <div style={{ background: 'white', border: '1px solid #e5e7eb', padding: '0.5rem 0.75rem', borderRadius: '0.5rem', fontSize: '0.8rem' }}>
+                                  <p style={{ margin: 0 }}>Test Δ (z): <strong>{d.compositeZ}</strong></p>
+                                  <p style={{ margin: 0 }}>Pain Δ: <strong>{d.deltaPain > 0 ? '+' : ''}{d.deltaPain}</strong></p>
+                                </div>
+                              );
+                            }} />
+                            <ReferenceLine x={0} stroke="#d1d5db" strokeDasharray="5 5" />
+                            <ReferenceLine y={0} stroke="#d1d5db" strokeDasharray="5 5" />
+                            <Scatter data={pts} fill="#4f46e5" opacity={0.7} />
+                            <Line data={trendLine as any} type="linear" dataKey="deltaPain" stroke="#1f2937" strokeWidth={2} strokeDasharray="6 3" dot={false} activeDot={false} legendType="none" />
+                          </ScatterChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
             </div>
           )}
 
