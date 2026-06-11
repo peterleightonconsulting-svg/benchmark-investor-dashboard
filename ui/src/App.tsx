@@ -1,8 +1,18 @@
 import { useEffect, useState } from 'react';
-import { BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell, ReferenceLine } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell, ReferenceLine, ScatterChart, Scatter, CartesianGrid, ZAxis, Legend } from 'recharts';
 import { Activity, Users, DollarSign, Target, ActivitySquare, CalendarDays, TrendingUp, HeartPulse, RefreshCw, MessageSquare, X, Send, Zap } from 'lucide-react';
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
+
+const BODY_PART_COLORS = [
+  { part: 'Knee',         color: '#4f46e5' },
+  { part: 'Shoulder',     color: '#f59e0b' },
+  { part: 'Lumbar Spine', color: '#10b981' },
+  { part: 'Ankle',        color: '#ef4444' },
+  { part: 'Hip',          color: '#8b5cf6' },
+  { part: 'Elbow',        color: '#06b6d4' },
+  { part: 'Other',        color: '#9ca3af' },
+];
 
 const sortBuckets = (data: any[], order: string[]) =>
   [...data].sort((a, b) => {
@@ -54,6 +64,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<'investor' | 'physio' | 'analysis'>('investor');
   const [capacitySearch, setCapacitySearch] = useState('');
   const [corrData, setCorrData] = useState<any>(null);
+  const [scatterData, setScatterData] = useState<any>(null);
   
   // Chatbot State
   const [isChatOpen, setIsChatOpen] = useState(false);
@@ -121,6 +132,14 @@ export default function App() {
       .then(res => res.json())
       .then(res => setCorrData(res))
       .catch(err => console.error('Failed to fetch correlation data', err));
+  }, [selectedPhysio]);
+
+  useEffect(() => {
+    const url = selectedPhysio ? `/api/scatter?physioId=${selectedPhysio}` : '/api/scatter';
+    fetch(url)
+      .then(res => res.json())
+      .then(res => setScatterData(res))
+      .catch(err => console.error('Failed to fetch scatter data', err));
   }, [selectedPhysio]);
 
   useEffect(() => {
@@ -801,11 +820,120 @@ export default function App() {
 
       {activeTab === 'analysis' && (
         <div>
-          <h2 className="section-title">PROMs Correlation Analysis</h2>
-          <p style={{ color: '#6b7280', fontSize: '0.875rem', marginBottom: '1.5rem', background: '#f9fafb', padding: '1rem', borderRadius: '0.5rem', border: '1px solid #e5e7eb' }}>
-            <strong>How to read:</strong> Each bar shows the average change in Pain and Function scores for a patient group.{' '}
-            <strong>Positive = improvement.</strong> Only groups with 2+ patients are shown.
-            {corrData?.totalPatients ? ` Based on ${corrData.totalPatients} patients with longitudinal PROMs.` : ''}
+          <h2 className="section-title">PROMs Outcomes Analysis</h2>
+
+          {/* Key Findings Cards */}
+          {corrData && scatterData && (() => {
+            const longDur  = corrData.byDuration?.find((d: any) => d.group.startsWith('Long'));
+            const shortDur = corrData.byDuration?.find((d: any) => d.group.startsWith('Short'));
+            const durationDiff = longDur && shortDur && longDur.avgFunctionChange !== null && shortDur.avgFunctionChange !== null
+              ? (parseFloat(longDur.avgFunctionChange) - parseFloat(shortDur.avgFunctionChange)).toFixed(1) : null;
+            const sortedParts = [...(corrData.byBodyPart || [])]
+              .filter((b: any) => b.avgFunctionChange !== null)
+              .sort((a: any, b: any) => parseFloat(b.avgFunctionChange) - parseFloat(a.avgFunctionChange));
+            const bothPct = scatterData.total > 0
+              ? ((scatterData.quadrants.bothImproved / scatterData.total) * 100).toFixed(0) : '0';
+            const r = parseFloat(scatterData.correlation);
+            return (
+              <div className="metrics-grid" style={{ marginBottom: '1.5rem' }}>
+                <div className="metric-card">
+                  <div className="metric-icon"><TrendingUp size={24} /></div>
+                  <div className="metric-content">
+                    <h3>Pain ↔ Function</h3>
+                    <div className="metric-value">r = {scatterData.correlation}</div>
+                    <div className="metric-subtitle">{r > 0.5 ? 'Strong' : r > 0.3 ? 'Moderate' : 'Weak'} positive correlation</div>
+                  </div>
+                </div>
+                <div className="metric-card">
+                  <div className="metric-icon"><HeartPulse size={24} /></div>
+                  <div className="metric-content">
+                    <h3>Improved in Both</h3>
+                    <div className="metric-value">{bothPct}%</div>
+                    <div className="metric-subtitle">{scatterData.quadrants.bothImproved} of {scatterData.total} patients</div>
+                  </div>
+                </div>
+                {durationDiff && (
+                  <div className="metric-card">
+                    <div className="metric-icon"><CalendarDays size={24} /></div>
+                    <div className="metric-content">
+                      <h3>Duration → Function</h3>
+                      <div className="metric-value">+{durationDiff} pts</div>
+                      <div className="metric-subtitle">Long vs short treatment (12wk+ vs &lt;4wk)</div>
+                    </div>
+                  </div>
+                )}
+                {sortedParts.length >= 2 && (
+                  <div className="metric-card">
+                    <div className="metric-icon"><Target size={24} /></div>
+                    <div className="metric-content">
+                      <h3>Best Recovery</h3>
+                      <div className="metric-value">{sortedParts[0].group}</div>
+                      <div className="metric-subtitle">Most function improvement by body part</div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
+          {/* Scatter Plot */}
+          {scatterData && scatterData.points?.length > 0 && (
+            <div className="chart-card" style={{ marginBottom: '1.5rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1rem' }}>
+                <div>
+                  <h3 style={{ margin: 0, marginBottom: '0.25rem' }}>Δ Pain vs Δ Function — per patient</h3>
+                  <p style={{ fontSize: '0.75rem', color: '#6b7280', margin: 0 }}>
+                    Pearson r = <strong>{scatterData.correlation}</strong>. Each dot is one patient, coloured by body part.
+                    Top-right quadrant = both improved.
+                  </p>
+                </div>
+                <div style={{ display: 'flex', gap: '1rem', fontSize: '0.75rem', flexWrap: 'wrap' }}>
+                  <span style={{ color: '#10b981', fontWeight: 600 }}>✓ Both: {scatterData.quadrants.bothImproved}</span>
+                  <span style={{ color: '#6b7280' }}>Pain only: {scatterData.quadrants.onlyPain}</span>
+                  <span style={{ color: '#6b7280' }}>Function only: {scatterData.quadrants.onlyFunction}</span>
+                  <span style={{ color: '#ef4444' }}>Neither: {scatterData.quadrants.neither}</span>
+                </div>
+              </div>
+              <div style={{ height: 380 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <ScatterChart margin={{ top: 10, right: 30, bottom: 40, left: 10 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+                    <XAxis type="number" dataKey="delta_pain" name="Pain Change" tick={{ fontSize: 11 }} label={{ value: 'Δ Pain Score (positive = better)', position: 'insideBottom', offset: -25, fontSize: 11, fill: '#6b7280' }} />
+                    <YAxis type="number" dataKey="delta_function" name="Function Change" tick={{ fontSize: 11 }} label={{ value: 'Δ Function Score', angle: -90, position: 'insideLeft', offset: 15, fontSize: 11, fill: '#6b7280' }} />
+                    <ZAxis range={[45, 45]} />
+                    <RechartsTooltip content={({ active, payload }: any) => {
+                      if (!active || !payload?.length) return null;
+                      const d = payload[0].payload;
+                      return (
+                        <div style={{ background: 'white', border: '1px solid #e5e7eb', padding: '0.625rem 0.875rem', borderRadius: '0.5rem', fontSize: '0.8rem', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
+                          <p style={{ fontWeight: 600, marginBottom: '0.25rem', color: '#111827' }}>{d.body_part} · {d.gender}</p>
+                          <p style={{ color: '#6b7280', margin: 0 }}>Pain Δ: <strong>{d.delta_pain > 0 ? '+' : ''}{d.delta_pain}</strong></p>
+                          <p style={{ color: '#6b7280', margin: 0 }}>Function Δ: <strong>{d.delta_function > 0 ? '+' : ''}{d.delta_function}</strong></p>
+                        </div>
+                      );
+                    }} />
+                    <ReferenceLine x={0} stroke="#d1d5db" strokeDasharray="5 5" />
+                    <ReferenceLine y={0} stroke="#d1d5db" strokeDasharray="5 5" />
+                    {BODY_PART_COLORS.map(({ part, color }) => (
+                      <Scatter
+                        key={part}
+                        name={part}
+                        data={(scatterData.points as any[]).filter(p => p.body_part === part)}
+                        fill={color}
+                        opacity={0.8}
+                      />
+                    ))}
+                    <Legend verticalAlign="bottom" height={36} wrapperStyle={{ fontSize: '0.75rem', paddingTop: '0.5rem' }} />
+                  </ScatterChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
+
+          {/* Group Breakdown Charts */}
+          <p style={{ color: '#6b7280', fontSize: '0.875rem', marginBottom: '1rem', background: '#f9fafb', padding: '0.75rem 1rem', borderRadius: '0.5rem', border: '1px solid #e5e7eb' }}>
+            <strong>Group comparisons:</strong> Average Δ Pain and Δ Function by patient subgroup. Positive = improvement. Only groups with 2+ patients shown.
+            {corrData?.totalPatients ? ` n=${corrData.totalPatients} patients.` : ''}
           </p>
 
           {!corrData ? (

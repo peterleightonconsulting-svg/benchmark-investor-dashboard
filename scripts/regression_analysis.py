@@ -98,6 +98,23 @@ def mean_activity(row):
     return sum(vals) / len(vals) if vals else None
 
 
+ACTIVITY_MAP = {
+    'meets-both':    'Meets Both Guidelines',
+    'meets-one':     'Meets One Guideline',
+    'exceeds-both':  'Exceeds Both Guidelines',
+    'exceeds-one':   'Exceeds One, Meets Other',
+    'Meets both the cardiovascular and resistance training guidelines as suggested by the NHS':             'Meets Both Guidelines',
+    'Meets one of the cardiovascular or resistance training guidelines as suggested by the NHS':           'Meets One Guideline',
+    'Exceeds both the cardiovascular and resistance training guidelines as suggested by the NHS':          'Exceeds Both Guidelines',
+    'Exceeds one of the cardiovascular or resistance training guidelines as suggested by the NHS & meets the other': 'Exceeds One, Meets Other',
+    'Does not meet the cardiovascular or resistance training guidelines as suggested by the NHS':          'Does Not Meet Guidelines',
+}
+
+BODY_PART_MAP = {
+    'lumbar-spine': 'Lumbar Spine',
+    'lumbar spine': 'Lumbar Spine',
+}
+
 def build_dataframe(proms, sessions):
     by_patient = {}
     for row in proms:
@@ -134,8 +151,8 @@ def build_dataframe(proms, sessions):
             'baseline_pain':     bp if bp is not None else np.nan,
             'baseline_function': bf if bf is not None else np.nan,
             'gender':            p['gender'] or 'Unknown',
-            'activity_level':    p['activity_level'] or 'Unknown',
-            'body_part':         p['body_part'] or 'Other',
+            'activity_level':    ACTIVITY_MAP.get(p['activity_level'] or '', p['activity_level'] or 'Unknown'),
+            'body_part':         BODY_PART_MAP.get((p['body_part'] or '').lower(), p['body_part'] or 'Other'),
             'treatment_days':    days,
             'n_sessions':        sessions.get(pid, 0),
             'n_proms':           len(recs),

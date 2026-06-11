@@ -33,6 +33,33 @@ CRITICAL RULES:
 4. Try to join tables to give human-readable names (like joining patients to users to get the doctor's name).
 `;
 
+// ── Data normalisation helpers ───────────────────────────────────────────────
+const BODY_PART_NORMALISE = { 'lumbar-spine': 'Lumbar Spine', 'lumbar spine': 'Lumbar Spine' };
+const ACTIVITY_NORMALISE = {
+  'meets-both':   'Meets Both Guidelines',
+  'meets-one':    'Meets One Guideline',
+  'exceeds-both': 'Exceeds Both Guidelines',
+  'exceeds-one':  'Exceeds One, Meets Other',
+  'Meets both the cardiovascular and resistance training guidelines as suggested by the NHS':             'Meets Both Guidelines',
+  'Meets one of the cardiovascular or resistance training guidelines as suggested by the NHS':           'Meets One Guideline',
+  'Exceeds both the cardiovascular and resistance training guidelines as suggested by the NHS':          'Exceeds Both Guidelines',
+  'Exceeds one of the cardiovascular or resistance training guidelines as suggested by the NHS & meets the other': 'Exceeds One, Meets Other',
+  'Does not meet the cardiovascular or resistance training guidelines as suggested by the NHS':          'Does Not Meet Guidelines',
+};
+const normBodyPart = name => BODY_PART_NORMALISE[(name || '').toLowerCase()] || name || 'Other';
+const normActivity  = name => ACTIVITY_NORMALISE[name] || name || 'Unknown';
+
+function pearsonCorrelation(xs, ys) {
+  const n = xs.length;
+  if (n < 2) return 0;
+  const mx = xs.reduce((a, b) => a + b, 0) / n;
+  const my = ys.reduce((a, b) => a + b, 0) / n;
+  const cov = xs.reduce((s, x, i) => s + (x - mx) * (ys[i] - my), 0) / n;
+  const sx = Math.sqrt(xs.reduce((s, x) => s + (x - mx) ** 2, 0) / n);
+  const sy = Math.sqrt(ys.reduce((s, y) => s + (y - my) ** 2, 0) / n);
+  return sx * sy ? parseFloat((cov / (sx * sy)).toFixed(3)) : 0;
+}
+
 // Ping route for health check
 app.get('/api/ping', (req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
 
@@ -471,7 +498,7 @@ app.get('/api/stats', async (req, res) => {
           }
 
           // Body Part tracking
-          const bodyPart = first.body_part_name || 'Other';
+          const bodyPart = normBodyPart(first.body_part_name);
           if (!bodyPartMap[bodyPart]) {
              bodyPartMap[bodyPart] = { name: bodyPart, patients: new Set(), pChanges: [], aChanges: [], improvingCount: 0 };
           }
@@ -656,8 +683,8 @@ app.get('/api/correlations', async (req, res) => {
         pChange,
         aChange,
         gender: gender || 'Unknown',
-        activity_level: activity_level || 'Unknown',
-        body_part: body_part_name || 'Other',
+        activity_level: normActivity(activity_level),
+        body_part: normBodyPart(body_part_name),
         sessionBucket,
         durationBucket,
         basePainBucket
@@ -691,6 +718,90 @@ app.get('/api/correlations', async (req, res) => {
       byDuration: groupBy(patientChanges, 'durationBucket'),
       byBasePain: groupBy(patientChanges, 'basePainBucket'),
       totalPatients: patientChanges.length
+    });
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: error.message });
+  } finally {
+    if (connection) await connection.end();
+  }
+});
+
+app.get('/api/scatter', async (req, res) => {
+  let connection;
+  try {
+    connection = await mysql.createConnection({
+      host: process.env.DB_HOST || '127.0.0.1',
+      port: process.env.DB_PORT || 3307,
+      user: process.env.DB_USER || 'benchmark2026',
+      password: process.env.DB_PASSWORD || 'Benchmark941!!',
+      database: process.env.DB_NAME || 'benchmark-mysql',
+      ssl: process.env.DB_HOST ? { rejectUnauthorized: false } : null,
+      connectTimeout: 10000
+    });
+
+    let excludeCondition = "u.is_test_account = 0 AND u.email NOT LIKE '%@benchmarkps.org' AND u.email NOT LIKE 'gus@%'";
+    if (req.query.physioId) {
+      excludeCondition += ` AND u.id = ${connection.escape(req.query.physioId)}`;
+    }
+
+    const [promsRecords] = await connection.query(`
+      SELECT psf.patient_id, psf.created_at, psf.pain_intensity,
+             psf.activity_one_result, psf.activity_two_result, psf.activity_three_result,
+             p.gender, bp.name AS body_part_name
+      FROM patient_symptoms_form psf
+      JOIN patients p ON psf.patient_id = p.id
+      JOIN users u ON p.doctor_id = u.id
+      LEFT JOIN injury i ON p.id = i.patient_id
+      LEFT JOIN body_parts bp ON i.body_part_id = bp.id
+      WHERE ${excludeCondition}
+      ORDER BY psf.patient_id, psf.created_at ASC
+    `);
+
+    const patientProms = {};
+    for (const row of promsRecords) {
+      if (!patientProms[row.patient_id]) {
+        patientProms[row.patient_id] = { records: [], gender: row.gender, body_part: normBodyPart(row.body_part_name) };
+      }
+      patientProms[row.patient_id].records.push(row);
+    }
+
+    const getMean = r => {
+      const vals = [r.activity_one_result, r.activity_two_result, r.activity_three_result].filter(v => v !== null);
+      return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+    };
+
+    const points = [];
+    for (const patientId in patientProms) {
+      const { records, gender, body_part } = patientProms[patientId];
+      if (records.length < 2) continue;
+      const first = records[0], last = records[records.length - 1];
+      const days = (new Date(last.created_at) - new Date(first.created_at)) / (1000 * 60 * 60 * 24);
+      if (days < 3) continue;
+
+      const dp = (first.pain_intensity !== null && last.pain_intensity !== null)
+        ? parseFloat((last.pain_intensity - first.pain_intensity).toFixed(2)) : null;
+      const fm = getMean(first), lm = getMean(last);
+      const df = (fm !== null && lm !== null) ? parseFloat((lm - fm).toFixed(2)) : null;
+
+      if (dp !== null && df !== null) {
+        points.push({ delta_pain: dp, delta_function: df, body_part, gender: gender || 'Unknown' });
+      }
+    }
+
+    const xs = points.map(p => p.delta_pain);
+    const ys = points.map(p => p.delta_function);
+    res.json({
+      points,
+      correlation: pearsonCorrelation(xs, ys),
+      quadrants: {
+        bothImproved: points.filter(p => p.delta_pain > 0 && p.delta_function > 0).length,
+        onlyPain:     points.filter(p => p.delta_pain > 0 && p.delta_function <= 0).length,
+        onlyFunction: points.filter(p => p.delta_pain <= 0 && p.delta_function > 0).length,
+        neither:      points.filter(p => p.delta_pain <= 0 && p.delta_function <= 0).length,
+      },
+      total: points.length
     });
 
   } catch (error) {
