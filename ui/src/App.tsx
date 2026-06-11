@@ -1,8 +1,26 @@
 import { useEffect, useState } from 'react';
-import { BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell, ReferenceLine, ScatterChart, Scatter, CartesianGrid, ZAxis, Legend } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell, ReferenceLine, ScatterChart, Scatter, CartesianGrid, ZAxis, Legend, Line } from 'recharts';
 import { Activity, Users, DollarSign, Target, ActivitySquare, CalendarDays, TrendingUp, HeartPulse, RefreshCw, MessageSquare, X, Send, Zap } from 'lucide-react';
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
+
+function linearReg(pts: {x: number, y: number}[]) {
+  const n = pts.length;
+  if (n < 2) return { m: 0, b: 0, r2: 0 };
+  const mx = pts.reduce((s, p) => s + p.x, 0) / n;
+  const my = pts.reduce((s, p) => s + p.y, 0) / n;
+  const ssxy = pts.reduce((s, p) => s + (p.x - mx) * (p.y - my), 0);
+  const ssxx = pts.reduce((s, p) => s + (p.x - mx) ** 2, 0);
+  const m = ssxx ? ssxy / ssxx : 0;
+  const b = my - m * mx;
+  const ssTot = pts.reduce((s, p) => s + (p.y - my) ** 2, 0);
+  const ssRes = pts.reduce((s, p) => s + (p.y - (m * p.x + b)) ** 2, 0);
+  return {
+    m: parseFloat(m.toFixed(3)),
+    b: parseFloat(b.toFixed(3)),
+    r2: parseFloat((ssTot ? 1 - ssRes / ssTot : 0).toFixed(3)),
+  };
+}
 
 const BODY_PART_COLORS = [
   { part: 'Knee',         color: '#4f46e5' },
@@ -877,58 +895,71 @@ export default function App() {
           })()}
 
           {/* Scatter Plot */}
-          {scatterData && scatterData.points?.length > 0 && (
-            <div className="chart-card" style={{ marginBottom: '1.5rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1rem' }}>
-                <div>
-                  <h3 style={{ margin: 0, marginBottom: '0.25rem' }}>Δ Pain vs Δ Function — per patient</h3>
-                  <p style={{ fontSize: '0.75rem', color: '#6b7280', margin: 0 }}>
-                    Pearson r = <strong>{scatterData.correlation}</strong>. Each dot is one patient, coloured by body part.
-                    Top-right quadrant = both improved.
-                  </p>
+          {scatterData && scatterData.points?.length > 0 && (() => {
+            const pts = (scatterData.points as any[]).map(p => ({ x: p.delta_function, y: p.delta_pain }));
+            const reg = linearReg(pts);
+            const xs = pts.map(p => p.x);
+            const minX = Math.min(...xs), maxX = Math.max(...xs);
+            const trendLine = [
+              { delta_function: minX, delta_pain: parseFloat((reg.m * minX + reg.b).toFixed(2)) },
+              { delta_function: maxX, delta_pain: parseFloat((reg.m * maxX + reg.b).toFixed(2)) },
+            ];
+            const eqSign = reg.b >= 0 ? '+' : '';
+            return (
+              <div className="chart-card" style={{ marginBottom: '1.5rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1rem' }}>
+                  <div>
+                    <h3 style={{ margin: 0, marginBottom: '0.25rem' }}>Δ Pain vs Δ Function — per patient</h3>
+                    <p style={{ fontSize: '0.75rem', color: '#6b7280', margin: 0 }}>
+                      Pearson r = <strong>{scatterData.correlation}</strong> · y = {reg.m}x {eqSign}{reg.b} · R² = {reg.r2}.
+                      Each dot is one patient, coloured by body part. Top-right = both improved.
+                    </p>
+                  </div>
+                  <div style={{ display: 'flex', gap: '1rem', fontSize: '0.75rem', flexWrap: 'wrap' }}>
+                    <span style={{ color: '#10b981', fontWeight: 600 }}>✓ Both: {scatterData.quadrants.bothImproved}</span>
+                    <span style={{ color: '#6b7280' }}>Pain only: {scatterData.quadrants.onlyPain}</span>
+                    <span style={{ color: '#6b7280' }}>Function only: {scatterData.quadrants.onlyFunction}</span>
+                    <span style={{ color: '#ef4444' }}>Neither: {scatterData.quadrants.neither}</span>
+                  </div>
                 </div>
-                <div style={{ display: 'flex', gap: '1rem', fontSize: '0.75rem', flexWrap: 'wrap' }}>
-                  <span style={{ color: '#10b981', fontWeight: 600 }}>✓ Both: {scatterData.quadrants.bothImproved}</span>
-                  <span style={{ color: '#6b7280' }}>Pain only: {scatterData.quadrants.onlyPain}</span>
-                  <span style={{ color: '#6b7280' }}>Function only: {scatterData.quadrants.onlyFunction}</span>
-                  <span style={{ color: '#ef4444' }}>Neither: {scatterData.quadrants.neither}</span>
+                <div style={{ height: 400 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <ScatterChart margin={{ top: 10, right: 30, bottom: 45, left: 20 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+                      <XAxis type="number" dataKey="delta_function" name="Function Change" tick={{ fontSize: 11 }} label={{ value: 'Δ Function Score (positive = better)', position: 'insideBottom', offset: -30, fontSize: 11, fill: '#6b7280' }} />
+                      <YAxis type="number" dataKey="delta_pain" name="Pain Change" tick={{ fontSize: 11 }} label={{ value: 'Δ Pain Score (positive = better)', angle: -90, position: 'insideLeft', offset: 10, fontSize: 11, fill: '#6b7280' }} />
+                      <ZAxis range={[45, 45]} />
+                      <RechartsTooltip content={({ active, payload }: any) => {
+                        if (!active || !payload?.length) return null;
+                        const d = payload[0].payload;
+                        if (!d.body_part) return null;
+                        return (
+                          <div style={{ background: 'white', border: '1px solid #e5e7eb', padding: '0.625rem 0.875rem', borderRadius: '0.5rem', fontSize: '0.8rem', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
+                            <p style={{ fontWeight: 600, marginBottom: '0.25rem', color: '#111827' }}>{d.body_part} · {d.gender}</p>
+                            <p style={{ color: '#6b7280', margin: 0 }}>Pain Δ: <strong>{d.delta_pain > 0 ? '+' : ''}{d.delta_pain}</strong></p>
+                            <p style={{ color: '#6b7280', margin: 0 }}>Function Δ: <strong>{d.delta_function > 0 ? '+' : ''}{d.delta_function}</strong></p>
+                          </div>
+                        );
+                      }} />
+                      <ReferenceLine x={0} stroke="#d1d5db" strokeDasharray="5 5" />
+                      <ReferenceLine y={0} stroke="#d1d5db" strokeDasharray="5 5" />
+                      {BODY_PART_COLORS.map(({ part, color }) => (
+                        <Scatter
+                          key={part}
+                          name={part}
+                          data={(scatterData.points as any[]).filter(p => p.body_part === part)}
+                          fill={color}
+                          opacity={0.8}
+                        />
+                      ))}
+                      <Line data={trendLine as any} type="linear" dataKey="delta_pain" stroke="#1f2937" strokeWidth={2} strokeDasharray="6 3" dot={false} activeDot={false} legendType="none" />
+                      <Legend verticalAlign="top" height={36} wrapperStyle={{ fontSize: '0.75rem', paddingBottom: '0.5rem' }} />
+                    </ScatterChart>
+                  </ResponsiveContainer>
                 </div>
               </div>
-              <div style={{ height: 380 }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <ScatterChart margin={{ top: 10, right: 30, bottom: 40, left: 10 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
-                    <XAxis type="number" dataKey="delta_pain" name="Pain Change" tick={{ fontSize: 11 }} label={{ value: 'Δ Pain Score (positive = better)', position: 'insideBottom', offset: -25, fontSize: 11, fill: '#6b7280' }} />
-                    <YAxis type="number" dataKey="delta_function" name="Function Change" tick={{ fontSize: 11 }} label={{ value: 'Δ Function Score', angle: -90, position: 'insideLeft', offset: 15, fontSize: 11, fill: '#6b7280' }} />
-                    <ZAxis range={[45, 45]} />
-                    <RechartsTooltip content={({ active, payload }: any) => {
-                      if (!active || !payload?.length) return null;
-                      const d = payload[0].payload;
-                      return (
-                        <div style={{ background: 'white', border: '1px solid #e5e7eb', padding: '0.625rem 0.875rem', borderRadius: '0.5rem', fontSize: '0.8rem', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
-                          <p style={{ fontWeight: 600, marginBottom: '0.25rem', color: '#111827' }}>{d.body_part} · {d.gender}</p>
-                          <p style={{ color: '#6b7280', margin: 0 }}>Pain Δ: <strong>{d.delta_pain > 0 ? '+' : ''}{d.delta_pain}</strong></p>
-                          <p style={{ color: '#6b7280', margin: 0 }}>Function Δ: <strong>{d.delta_function > 0 ? '+' : ''}{d.delta_function}</strong></p>
-                        </div>
-                      );
-                    }} />
-                    <ReferenceLine x={0} stroke="#d1d5db" strokeDasharray="5 5" />
-                    <ReferenceLine y={0} stroke="#d1d5db" strokeDasharray="5 5" />
-                    {BODY_PART_COLORS.map(({ part, color }) => (
-                      <Scatter
-                        key={part}
-                        name={part}
-                        data={(scatterData.points as any[]).filter(p => p.body_part === part)}
-                        fill={color}
-                        opacity={0.8}
-                      />
-                    ))}
-                    <Legend verticalAlign="bottom" height={36} wrapperStyle={{ fontSize: '0.75rem', paddingTop: '0.5rem' }} />
-                  </ScatterChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* Group Breakdown Charts */}
           <p style={{ color: '#6b7280', fontSize: '0.875rem', marginBottom: '1rem', background: '#f9fafb', padding: '0.75rem 1rem', borderRadius: '0.5rem', border: '1px solid #e5e7eb' }}>
