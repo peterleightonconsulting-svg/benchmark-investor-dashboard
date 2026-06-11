@@ -12,23 +12,26 @@ const sortBuckets = (data: any[], order: string[]) =>
   });
 
 const CorrelationChart = ({ title, data, note }: { title: string; data: any[]; note?: string }) => {
-  const chartData = data.map(d => ({ ...d, label: `${d.group} (n=${d.count})` }));
+  const chartHeight = Math.max(160, data.length * 48 + 40);
   return (
     <div className="chart-card">
       <h3 style={{ marginBottom: note ? '0.25rem' : '1rem' }}>{title}</h3>
       {note && <p style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '1rem' }}>{note}</p>}
-      {chartData.length === 0 ? (
+      {data.length === 0 ? (
         <p style={{ color: '#9ca3af', textAlign: 'center', padding: '2rem 0', fontSize: '0.875rem' }}>Not enough data (min. 2 patients per group)</p>
       ) : (
-        <div style={{ height: 230 }}>
+        <div style={{ height: chartHeight }}>
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={chartData} margin={{ top: 10, right: 10, bottom: 55, left: 0 }}>
-              <XAxis dataKey="label" tick={{ fontSize: 10 }} angle={-25} textAnchor="end" interval={0} />
-              <YAxis tick={{ fontSize: 11 }} />
-              <RechartsTooltip formatter={(val: any) => typeof val === 'number' ? val.toFixed(2) : val} />
-              <ReferenceLine y={0} stroke="#d1d5db" />
-              <Bar dataKey="avgPainChange" name="Pain Change" fill="#ef4444" radius={[3, 3, 0, 0]} />
-              <Bar dataKey="avgFunctionChange" name="Function Change" fill="#10b981" radius={[3, 3, 0, 0]} />
+            <BarChart data={data} layout="vertical" margin={{ top: 5, right: 20, bottom: 5, left: 10 }}>
+              <XAxis type="number" tick={{ fontSize: 11 }} />
+              <YAxis type="category" dataKey="group" width={120} tick={{ fontSize: 11 }} />
+              <RechartsTooltip
+                formatter={(val: any) => typeof val === 'number' ? val.toFixed(2) : val}
+                labelFormatter={(label: string, payload: any[]) => `${label} (n=${payload?.[0]?.payload?.count ?? '?'})`}
+              />
+              <ReferenceLine x={0} stroke="#d1d5db" />
+              <Bar dataKey="avgPainChange" name="Pain Change" fill="#ef4444" radius={[0, 3, 3, 0]} />
+              <Bar dataKey="avgFunctionChange" name="Function Change" fill="#10b981" radius={[0, 3, 3, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
