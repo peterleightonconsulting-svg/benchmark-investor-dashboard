@@ -17,10 +17,12 @@ If running against the production DB, set DB_HOST, DB_PORT, DB_USER, DB_PASSWORD
 
 import os
 import sys
+import json
 import pymysql
 import pandas as pd
 import numpy as np
 import statsmodels.api as sm
+from datetime import datetime, timezone
 
 # ── DB connection ────────────────────────────────────────────────────────────
 
@@ -214,12 +216,33 @@ def run_ols(df, outcome, baseline_col, label):
 
     if len(sub) < 15:
         print(f"\n⚠  {label}: only {len(sub)} complete cases — need 15+ to fit, skipping.")
-        return
+        return None
 
     X = build_X(sub, [baseline_col, 'treatment_days', 'n_sessions'])
     y = sub[outcome].reset_index(drop=True)
     model = sm.OLS(y, X).fit()
     print_results(model, f"OLS — {label}")
+
+    ci = model.conf_int()
+    return {
+        'label': label,
+        'type': 'ols',
+        'n': int(model.nobs),
+        'r2': round(float(model.rsquared), 3),
+        'r2_adj': round(float(model.rsquared_adj), 3),
+        'f_pvalue': round(float(model.f_pvalue), 4),
+        'predictors': [
+            {
+                'name': name,
+                'coef': round(float(model.params[name]), 3),
+                'se': round(float(model.bse[name]), 3),
+                'p': round(float(model.pvalues[name]), 4),
+                'ci_low': round(float(ci.loc[name, 0]), 3),
+                'ci_high': round(float(ci.loc[name, 1]), 3),
+            }
+            for name in X.columns
+        ],
+    }
 
 
 def run_logit(df):
@@ -231,7 +254,7 @@ def run_logit(df):
     n_events = sub['improved_both'].sum()
     if len(sub) < 20 or n_events < 5:
         print(f"\n⚠  Logit: {len(sub)} cases, {n_events} events — insufficient, skipping.")
-        return
+        return None
 
     X = build_X(sub, ['baseline_pain', 'baseline_function', 'treatment_days', 'n_sessions'])
     y = sub['improved_both'].reset_index(drop=True)
@@ -251,6 +274,29 @@ def run_logit(df):
     print(f"\nPseudo R² (McFadden) = {model.prsquared:.3f}")
     print("\n  Significance: *** p<0.001  ** p<0.01  * p<0.05  . p<0.1")
     print("  Odds Ratio > 1 = predictor increases chance of improving in both metrics")
+
+    ci = model.conf_int()
+    return {
+        'label': 'Improved in Both (Logit)',
+        'type': 'logit',
+        'n': int(len(sub)),
+        'n_events': int(n_events),
+        'pseudo_r2': round(float(model.prsquared), 3),
+        'predictors': [
+            {
+                'name': name,
+                'coef': round(float(model.params[name]), 3),
+                'se': round(float(model.bse[name]), 3),
+                'p': round(float(model.pvalues[name]), 4),
+                'ci_low': round(float(ci.loc[name, 0]), 3),
+                'ci_high': round(float(ci.loc[name, 1]), 3),
+                'or': round(float(np.exp(model.params[name])), 3),
+                'or_ci_low': round(float(np.exp(ci.loc[name, 0])), 3),
+                'or_ci_high': round(float(np.exp(ci.loc[name, 1])), 3),
+            }
+            for name in X.columns
+        ],
+    }
 
 # ── Main ─────────────────────────────────────────────────────────────────────
 
@@ -275,8 +321,17 @@ if __name__ == '__main__':
     print(f"   n_sessions     — mean: {df['n_sessions'].mean():.1f}, "
           f"median: {df['n_sessions'].median():.1f}")
 
-    run_ols(df, 'delta_pain',     'baseline_pain',     'Δ Pain Score')
-    run_ols(df, 'delta_function', 'baseline_function', 'Δ Function Score')
-    run_logit(df)
+    models = [m for m in [
+        run_ols(df, 'delta_pain',     'baseline_pain',     'Δ Pain Score'),
+        run_ols(df, 'delta_function', 'baseline_function', 'Δ Function Score'),
+        run_logit(df),
+    ] if m is not None]
 
-    print("\n")
+    out_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'api', 'regression_results.json')
+    with open(out_path, 'w') as f:
+        json.dump({
+            'generated_at': datetime.now(timezone.utc).isoformat(),
+            'n_patients': len(df),
+            'models': models,
+        }, f, indent=2)
+    print(f"\n✓  Saved JSON results → {out_path}\n")

@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const mysql = require('mysql2/promise');
 const path = require('path');
+const fs = require('fs');
 const { GoogleGenAI } = require('@google/genai');
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
@@ -809,6 +810,19 @@ app.get('/api/scatter', async (req, res) => {
     res.status(500).json({ error: error.message });
   } finally {
     if (connection) await connection.end();
+  }
+});
+
+app.get('/api/regression', (req, res) => {
+  const filePath = path.join(__dirname, 'regression_results.json');
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).json({ error: 'Regression results not yet generated. Run scripts/regression_analysis.py first.' });
+  }
+  try {
+    const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    res.json(data);
+  } catch (e) {
+    res.status(500).json({ error: 'Failed to parse regression results.' });
   }
 });
 

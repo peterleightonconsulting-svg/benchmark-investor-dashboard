@@ -72,6 +72,92 @@ const CorrelationChart = ({ title, data, note }: { title: string; data: any[]; n
   );
 };
 
+function sigStars(p: number) {
+  if (p < 0.001) return '***';
+  if (p < 0.01) return '**';
+  if (p < 0.05) return '*';
+  if (p < 0.1) return '.';
+  return 'ns';
+}
+
+function cleanPredName(name: string): string {
+  const labels: Record<string, string> = {
+    const: 'Intercept',
+    baseline_pain: 'Baseline Pain',
+    baseline_function: 'Baseline Function',
+    treatment_days: 'Treatment Duration (days)',
+    n_sessions: 'No. of Sessions',
+  };
+  if (labels[name]) return labels[name];
+  return name.replace(/^gender_/, '').replace(/^activity_level_/, '').replace(/^body_part_/, '');
+}
+
+const RegressionChart = ({ model }: { model: any }) => {
+  const isLogit = model.type === 'logit';
+  const preds = model.predictors.filter((p: any) => p.name !== 'const');
+  const sorted = [...preds].sort((a: any, b: any) => Math.abs(b.coef) - Math.abs(a.coef));
+  const chartData = sorted.map((p: any) => ({
+    name: cleanPredName(p.name),
+    coef: p.coef,
+    p: p.p,
+    se: p.se,
+    ci_low: p.ci_low,
+    ci_high: p.ci_high,
+    or: p.or,
+    or_ci_low: p.or_ci_low,
+    or_ci_high: p.or_ci_high,
+    sig: p.p < 0.05,
+  }));
+  const chartHeight = Math.max(200, chartData.length * 40 + 40);
+  const fitStats = isLogit
+    ? `McFadden R² = ${model.pseudo_r2}  ·  n = ${model.n}  ·  events = ${model.n_events}`
+    : `R² = ${model.r2}  ·  Adj. R² = ${model.r2_adj}  ·  F p${model.f_pvalue < 0.001 ? ' < 0.001' : ` = ${model.f_pvalue}`}  ·  n = ${model.n}`;
+  return (
+    <div className="chart-card" style={{ marginBottom: '1.5rem' }}>
+      <div style={{ marginBottom: '1rem' }}>
+        <h3 style={{ margin: 0, marginBottom: '0.25rem' }}>
+          {isLogit ? 'Logit — P(Improved in Both Pain + Function)' : `OLS — Δ ${model.label}`}
+        </h3>
+        <p style={{ fontSize: '0.75rem', color: '#6b7280', margin: 0 }}>
+          {fitStats}{isLogit ? ' · Coefficients are log-odds; positive = higher probability of improving in both metrics' : ''}
+        </p>
+      </div>
+      <div style={{ height: chartHeight }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={chartData} layout="vertical" margin={{ top: 5, right: 50, bottom: 5, left: 165 }}>
+            <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={(v: number) => v.toFixed(2)} />
+            <YAxis type="category" dataKey="name" width={160} tick={{ fontSize: 11 }} />
+            <RechartsTooltip content={({ active, payload }: any) => {
+              if (!active || !payload?.length) return null;
+              const d = payload[0].payload;
+              return (
+                <div style={{ background: 'white', border: '1px solid #e5e7eb', padding: '0.625rem 0.875rem', borderRadius: '0.5rem', fontSize: '0.8rem', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
+                  <p style={{ fontWeight: 600, marginBottom: '0.25rem', color: '#111827' }}>{d.name}</p>
+                  <p style={{ margin: 0, color: '#6b7280' }}>Coef: <strong>{d.coef > 0 ? '+' : ''}{d.coef}</strong></p>
+                  {d.or !== undefined && <p style={{ margin: 0, color: '#6b7280' }}>Odds Ratio: <strong>{d.or}</strong> [{d.or_ci_low}, {d.or_ci_high}]</p>}
+                  <p style={{ margin: 0, color: '#6b7280' }}>95% CI: [{d.ci_low}, {d.ci_high}]</p>
+                  <p style={{ margin: 0, color: '#6b7280' }}>p = {d.p} <strong>{sigStars(d.p)}</strong></p>
+                </div>
+              );
+            }} />
+            <ReferenceLine x={0} stroke="#9ca3af" />
+            <Bar dataKey="coef" name="Coefficient" radius={[0, 3, 3, 0]}>
+              {chartData.map((_: any, i: number) => (
+                <Cell key={i} fill={chartData[i].sig ? (chartData[i].coef > 0 ? '#10b981' : '#ef4444') : '#d1d5db'} />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+      <div style={{ display: 'flex', gap: '1.5rem', justifyContent: 'center', marginTop: '0.5rem', fontSize: '0.75rem', color: '#6b7280' }}>
+        <span><span style={{ display: 'inline-block', width: 10, height: 10, background: '#10b981', borderRadius: 2, marginRight: 4 }} />Positive (p&lt;0.05)</span>
+        <span><span style={{ display: 'inline-block', width: 10, height: 10, background: '#ef4444', borderRadius: 2, marginRight: 4 }} />Negative (p&lt;0.05)</span>
+        <span><span style={{ display: 'inline-block', width: 10, height: 10, background: '#d1d5db', borderRadius: 2, marginRight: 4 }} />Not significant</span>
+      </div>
+    </div>
+  );
+};
+
 export default function App() {
   const [data, setData] = useState<any>(null);
   const [physioMetrics, setPhysioMetrics] = useState<any[]>([]);
@@ -83,6 +169,7 @@ export default function App() {
   const [capacitySearch, setCapacitySearch] = useState('');
   const [corrData, setCorrData] = useState<any>(null);
   const [scatterData, setScatterData] = useState<any>(null);
+  const [regressionData, setRegressionData] = useState<any>(null);
   
   // Chatbot State
   const [isChatOpen, setIsChatOpen] = useState(false);
@@ -159,6 +246,13 @@ export default function App() {
       .then(res => setScatterData(res))
       .catch(err => console.error('Failed to fetch scatter data', err));
   }, [selectedPhysio]);
+
+  useEffect(() => {
+    fetch('/api/regression')
+      .then(res => res.ok ? res.json() : null)
+      .then(res => res && setRegressionData(res))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     const fetchData = () => {
@@ -993,6 +1087,19 @@ export default function App() {
                 data={sortBuckets(corrData.byBasePain || [], ['Severe Pain (0-3)', 'Moderate Pain (4-6)', 'Mild Pain (7-10)'])}
                 note="Baseline pain score (0=most pain, 10=least pain on app scale)"
               />
+            </div>
+          )}
+
+          {/* Multivariate Regression */}
+          {regressionData && regressionData.models?.length > 0 && (
+            <div style={{ marginTop: '2.5rem' }}>
+              <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#111827', marginBottom: '0.5rem' }}>Multivariate Regression</h2>
+              <p style={{ fontSize: '0.875rem', color: '#6b7280', marginBottom: '1.5rem', background: '#f9fafb', padding: '0.75rem 1rem', borderRadius: '0.5rem', border: '1px solid #e5e7eb' }}>
+                <strong>What independently predicts improvement after controlling for other factors?</strong> Coloured bars are statistically significant (p &lt; 0.05). Bars are sorted by effect size. Generated {new Date(regressionData.generated_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}.
+              </p>
+              {regressionData.models.map((model: any) => (
+                <RegressionChart key={model.label} model={model} />
+              ))}
             </div>
           )}
         </div>

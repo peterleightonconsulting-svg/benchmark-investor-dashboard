@@ -1,0 +1,397 @@
+{
+  "generated_at": "2026-06-11T20:35:32.712578+00:00",
+  "n_patients": 67,
+  "models": [
+    {
+      "label": "\u0394 Pain Score",
+      "type": "ols",
+      "n": 67,
+      "r2": 0.699,
+      "r2_adj": 0.632,
+      "f_pvalue": 0.0,
+      "predictors": [
+        {
+          "name": "const",
+          "coef": 5.94,
+          "se": 1.378,
+          "p": 0.0001,
+          "ci_low": 3.177,
+          "ci_high": 8.703
+        },
+        {
+          "name": "baseline_pain",
+          "coef": -0.939,
+          "se": 0.096,
+          "p": 0.0,
+          "ci_low": -1.131,
+          "ci_high": -0.747
+        },
+        {
+          "name": "treatment_days",
+          "coef": 0.001,
+          "se": 0.003,
+          "p": 0.6137,
+          "ci_low": -0.004,
+          "ci_high": 0.006
+        },
+        {
+          "name": "n_sessions",
+          "coef": 0.174,
+          "se": 0.153,
+          "p": 0.2598,
+          "ci_low": -0.133,
+          "ci_high": 0.481
+        },
+        {
+          "name": "gender_Male",
+          "coef": 0.141,
+          "se": 0.443,
+          "p": 0.7518,
+          "ci_low": -0.747,
+          "ci_high": 1.028
+        },
+        {
+          "name": "activity_level_Exceeds Both Guidelines",
+          "coef": 2.439,
+          "se": 1.198,
+          "p": 0.0467,
+          "ci_low": 0.037,
+          "ci_high": 4.841
+        },
+        {
+          "name": "activity_level_Exceeds One, Meets Other",
+          "coef": 2.501,
+          "se": 1.223,
+          "p": 0.0458,
+          "ci_low": 0.048,
+          "ci_high": 4.953
+        },
+        {
+          "name": "activity_level_Meets Both Guidelines",
+          "coef": 2.109,
+          "se": 1.08,
+          "p": 0.0561,
+          "ci_low": -0.057,
+          "ci_high": 4.275
+        },
+        {
+          "name": "activity_level_Meets One Guideline",
+          "coef": 1.875,
+          "se": 1.097,
+          "p": 0.093,
+          "ci_low": -0.323,
+          "ci_high": 4.074
+        },
+        {
+          "name": "body_part_Knee",
+          "coef": -1.27,
+          "se": 0.725,
+          "p": 0.0857,
+          "ci_low": -2.724,
+          "ci_high": 0.184
+        },
+        {
+          "name": "body_part_Lumbar Spine",
+          "coef": -0.625,
+          "se": 0.823,
+          "p": 0.4507,
+          "ci_low": -2.274,
+          "ci_high": 1.024
+        },
+        {
+          "name": "body_part_Other",
+          "coef": -1.534,
+          "se": 0.818,
+          "p": 0.0661,
+          "ci_low": -3.173,
+          "ci_high": 0.105
+        },
+        {
+          "name": "body_part_Shoulder",
+          "coef": -1.68,
+          "se": 0.722,
+          "p": 0.0238,
+          "ci_low": -3.129,
+          "ci_high": -0.231
+        }
+      ]
+    },
+    {
+      "label": "\u0394 Function Score",
+      "type": "ols",
+      "n": 67,
+      "r2": 0.631,
+      "r2_adj": 0.549,
+      "f_pvalue": 0.0,
+      "predictors": [
+        {
+          "name": "const",
+          "coef": 4.04,
+          "se": 1.543,
+          "p": 0.0115,
+          "ci_low": 0.946,
+          "ci_high": 7.134
+        },
+        {
+          "name": "baseline_function",
+          "coef": -0.76,
+          "se": 0.118,
+          "p": 0.0,
+          "ci_low": -0.996,
+          "ci_high": -0.524
+        },
+        {
+          "name": "treatment_days",
+          "coef": 0.014,
+          "se": 0.003,
+          "p": 0.0,
+          "ci_low": 0.008,
+          "ci_high": 0.02
+        },
+        {
+          "name": "n_sessions",
+          "coef": -0.054,
+          "se": 0.168,
+          "p": 0.7474,
+          "ci_low": -0.392,
+          "ci_high": 0.283
+        },
+        {
+          "name": "gender_Male",
+          "coef": 0.669,
+          "se": 0.49,
+          "p": 0.1778,
+          "ci_low": -0.313,
+          "ci_high": 1.651
+        },
+        {
+          "name": "activity_level_Exceeds Both Guidelines",
+          "coef": 2.61,
+          "se": 1.284,
+          "p": 0.047,
+          "ci_low": 0.036,
+          "ci_high": 5.183
+        },
+        {
+          "name": "activity_level_Exceeds One, Meets Other",
+          "coef": 2.306,
+          "se": 1.327,
+          "p": 0.0878,
+          "ci_low": -0.353,
+          "ci_high": 4.966
+        },
+        {
+          "name": "activity_level_Meets Both Guidelines",
+          "coef": 2.362,
+          "se": 1.164,
+          "p": 0.0474,
+          "ci_low": 0.028,
+          "ci_high": 4.696
+        },
+        {
+          "name": "activity_level_Meets One Guideline",
+          "coef": 1.898,
+          "se": 1.193,
+          "p": 0.1174,
+          "ci_low": -0.493,
+          "ci_high": 4.29
+        },
+        {
+          "name": "body_part_Knee",
+          "coef": -1.676,
+          "se": 0.792,
+          "p": 0.0391,
+          "ci_low": -3.264,
+          "ci_high": -0.087
+        },
+        {
+          "name": "body_part_Lumbar Spine",
+          "coef": -0.85,
+          "se": 0.897,
+          "p": 0.3474,
+          "ci_low": -2.649,
+          "ci_high": 0.948
+        },
+        {
+          "name": "body_part_Other",
+          "coef": -2.431,
+          "se": 0.892,
+          "p": 0.0086,
+          "ci_low": -4.219,
+          "ci_high": -0.643
+        },
+        {
+          "name": "body_part_Shoulder",
+          "coef": -1.885,
+          "se": 0.791,
+          "p": 0.0208,
+          "ci_low": -3.472,
+          "ci_high": -0.298
+        }
+      ]
+    },
+    {
+      "label": "Improved in Both (Logit)",
+      "type": "logit",
+      "n": 67,
+      "n_events": 44,
+      "pseudo_r2": 0.388,
+      "predictors": [
+        {
+          "name": "const",
+          "coef": 2.65,
+          "se": 3.097,
+          "p": 0.3921,
+          "ci_low": -3.42,
+          "ci_high": 8.721,
+          "or": 14.158,
+          "or_ci_low": 0.033,
+          "or_ci_high": 6127.257
+        },
+        {
+          "name": "baseline_pain",
+          "coef": -0.887,
+          "se": 0.277,
+          "p": 0.0014,
+          "ci_low": -1.431,
+          "ci_high": -0.344,
+          "or": 0.412,
+          "or_ci_low": 0.239,
+          "or_ci_high": 0.709
+        },
+        {
+          "name": "baseline_function",
+          "coef": 0.347,
+          "se": 0.211,
+          "p": 0.101,
+          "ci_low": -0.068,
+          "ci_high": 0.761,
+          "or": 1.415,
+          "or_ci_low": 0.935,
+          "or_ci_high": 2.141
+        },
+        {
+          "name": "treatment_days",
+          "coef": 0.003,
+          "se": 0.005,
+          "p": 0.5996,
+          "ci_low": -0.007,
+          "ci_high": 0.012,
+          "or": 1.003,
+          "or_ci_low": 0.993,
+          "or_ci_high": 1.012
+        },
+        {
+          "name": "n_sessions",
+          "coef": 0.426,
+          "se": 0.378,
+          "p": 0.2593,
+          "ci_low": -0.314,
+          "ci_high": 1.167,
+          "or": 1.532,
+          "or_ci_low": 0.73,
+          "or_ci_high": 3.213
+        },
+        {
+          "name": "gender_Male",
+          "coef": -0.468,
+          "se": 0.996,
+          "p": 0.6382,
+          "ci_low": -2.42,
+          "ci_high": 1.484,
+          "or": 0.626,
+          "or_ci_low": 0.089,
+          "or_ci_high": 4.409
+        },
+        {
+          "name": "activity_level_Exceeds Both Guidelines",
+          "coef": 3.612,
+          "se": 2.605,
+          "p": 0.1656,
+          "ci_low": -1.494,
+          "ci_high": 8.719,
+          "or": 37.051,
+          "or_ci_low": 0.224,
+          "or_ci_high": 6117.254
+        },
+        {
+          "name": "activity_level_Exceeds One, Meets Other",
+          "coef": 6.57,
+          "se": 3.348,
+          "p": 0.0497,
+          "ci_low": 0.008,
+          "ci_high": 13.132,
+          "or": 713.241,
+          "or_ci_low": 1.008,
+          "or_ci_high": 504879.172
+        },
+        {
+          "name": "activity_level_Meets Both Guidelines",
+          "coef": 2.537,
+          "se": 2.381,
+          "p": 0.2866,
+          "ci_low": -2.13,
+          "ci_high": 7.204,
+          "or": 12.642,
+          "or_ci_low": 0.119,
+          "or_ci_high": 1344.3
+        },
+        {
+          "name": "activity_level_Meets One Guideline",
+          "coef": 3.224,
+          "se": 2.436,
+          "p": 0.1857,
+          "ci_low": -1.551,
+          "ci_high": 7.999,
+          "or": 25.123,
+          "or_ci_low": 0.212,
+          "or_ci_high": 2976.529
+        },
+        {
+          "name": "body_part_Knee",
+          "coef": -2.854,
+          "se": 1.443,
+          "p": 0.048,
+          "ci_low": -5.683,
+          "ci_high": -0.026,
+          "or": 0.058,
+          "or_ci_low": 0.003,
+          "or_ci_high": 0.975
+        },
+        {
+          "name": "body_part_Lumbar Spine",
+          "coef": -1.199,
+          "se": 1.649,
+          "p": 0.4672,
+          "ci_low": -4.431,
+          "ci_high": 2.033,
+          "or": 0.302,
+          "or_ci_low": 0.012,
+          "or_ci_high": 7.641
+        },
+        {
+          "name": "body_part_Other",
+          "coef": -2.995,
+          "se": 1.576,
+          "p": 0.0574,
+          "ci_low": -6.084,
+          "ci_high": 0.094,
+          "or": 0.05,
+          "or_ci_low": 0.002,
+          "or_ci_high": 1.099
+        },
+        {
+          "name": "body_part_Shoulder",
+          "coef": -1.144,
+          "se": 1.421,
+          "p": 0.421,
+          "ci_low": -3.929,
+          "ci_high": 1.642,
+          "or": 0.319,
+          "or_ci_low": 0.02,
+          "or_ci_high": 5.165
+        }
+      ]
+    }
+  ]
+}
