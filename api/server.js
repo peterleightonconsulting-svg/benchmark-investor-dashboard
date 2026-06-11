@@ -610,7 +610,8 @@ app.get('/api/correlations', async (req, res) => {
         psf.patient_id, psf.created_at, psf.pain_intensity,
         psf.activity_one_result, psf.activity_two_result, psf.activity_three_result,
         p.gender, p.activity_level,
-        bp.name AS body_part_name
+        bp.name AS body_part_name,
+        i.date_of_injury
       FROM patient_symptoms_form psf
       JOIN patients p ON psf.patient_id = p.id
       JOIN users u ON p.doctor_id = u.id
@@ -641,7 +642,8 @@ app.get('/api/correlations', async (req, res) => {
           records: [],
           gender: row.gender,
           activity_level: row.activity_level,
-          body_part_name: row.body_part_name
+          body_part_name: row.body_part_name,
+          date_of_injury: row.date_of_injury
         };
       }
       patientProms[row.patient_id].records.push(row);
@@ -655,7 +657,7 @@ app.get('/api/correlations', async (req, res) => {
     const patientChanges = [];
 
     for (const patientId in patientProms) {
-      const { records, gender, activity_level, body_part_name } = patientProms[patientId];
+      const { records, gender, activity_level, body_part_name, date_of_injury } = patientProms[patientId];
       if (records.length < 2) continue;
 
       const first = records[0];
@@ -680,6 +682,14 @@ app.get('/api/correlations', async (req, res) => {
       const basePain = first.pain_intensity;
       const basePainBucket = basePain === null ? 'Unknown' : basePain <= 3 ? 'Severe Pain (0-3)' : basePain <= 6 ? 'Moderate Pain (4-6)' : 'Mild Pain (7-10)';
 
+      const symptomDays = date_of_injury
+        ? Math.round((new Date(first.created_at) - new Date(date_of_injury)) / (1000 * 60 * 60 * 24))
+        : null;
+      const symptomBucket = symptomDays === null || symptomDays < 0 ? 'Unknown'
+        : symptomDays < 42 ? 'Acute (<6wk)'
+        : symptomDays < 84 ? 'Subacute (6-12wk)'
+        : 'Chronic (12wk+)';
+
       patientChanges.push({
         pChange,
         aChange,
@@ -688,7 +698,8 @@ app.get('/api/correlations', async (req, res) => {
         body_part: normBodyPart(body_part_name),
         sessionBucket,
         durationBucket,
-        basePainBucket
+        basePainBucket,
+        symptomBucket
       });
     }
 
@@ -718,6 +729,7 @@ app.get('/api/correlations', async (req, res) => {
       bySessionCount: groupBy(patientChanges, 'sessionBucket'),
       byDuration: groupBy(patientChanges, 'durationBucket'),
       byBasePain: groupBy(patientChanges, 'basePainBucket'),
+      bySymptomDuration: groupBy(patientChanges, 'symptomBucket'),
       totalPatients: patientChanges.length
     });
 

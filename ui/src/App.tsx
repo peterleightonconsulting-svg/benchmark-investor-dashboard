@@ -1095,6 +1095,11 @@ export default function App() {
                 data={sortBuckets(corrData.byBasePain || [], ['Severe Pain (0-3)', 'Moderate Pain (4-6)', 'Mild Pain (7-10)'])}
                 note="Baseline pain score (0=most pain, 10=least pain on app scale)"
               />
+              <CorrelationChart
+                title="By Symptom Duration at Intake"
+                data={sortBuckets(corrData.bySymptomDuration || [], ['Acute (<6wk)', 'Subacute (6-12wk)', 'Chronic (12wk+)', 'Unknown'])}
+                note="Time from date of injury to first PROMs submission"
+              />
             </div>
           )}
 
