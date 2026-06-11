@@ -959,8 +959,8 @@ export default function App() {
               />
               <CorrelationChart
                 title="By Baseline Pain Level"
-                data={sortBuckets(corrData.byBasePain || [], ['Low (0-3)', 'Medium (4-6)', 'High (7-10)'])}
-                note="Starting pain score at first PROMs submission"
+                data={sortBuckets(corrData.byBasePain || [], ['Severe Pain (0-3)', 'Moderate Pain (4-6)', 'Mild Pain (7-10)'])}
+                note="Baseline pain score (0=most pain, 10=least pain on app scale)"
               />
             </div>
           )}

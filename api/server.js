@@ -677,7 +677,7 @@ app.get('/api/correlations', async (req, res) => {
       const durationBucket = durationWeeks < 4 ? 'Short (<4wk)' : durationWeeks < 12 ? 'Medium (4-12wk)' : 'Long (12wk+)';
 
       const basePain = first.pain_intensity;
-      const basePainBucket = basePain === null ? 'Unknown' : basePain <= 3 ? 'Low (0-3)' : basePain <= 6 ? 'Medium (4-6)' : 'High (7-10)';
+      const basePainBucket = basePain === null ? 'Unknown' : basePain <= 3 ? 'Severe Pain (0-3)' : basePain <= 6 ? 'Moderate Pain (4-6)' : 'Mild Pain (7-10)';
 
       patientChanges.push({
         pChange,
