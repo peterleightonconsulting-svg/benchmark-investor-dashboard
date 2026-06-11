@@ -1,8 +1,45 @@
 import { useEffect, useState } from 'react';
-import { BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell, ReferenceLine } from 'recharts';
 import { Activity, Users, DollarSign, Target, ActivitySquare, CalendarDays, TrendingUp, HeartPulse, RefreshCw, MessageSquare, X, Send, Zap } from 'lucide-react';
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
+
+const sortBuckets = (data: any[], order: string[]) =>
+  [...data].sort((a, b) => {
+    const ai = order.indexOf(a.group);
+    const bi = order.indexOf(b.group);
+    return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+  });
+
+const CorrelationChart = ({ title, data, note }: { title: string; data: any[]; note?: string }) => {
+  const chartData = data.map(d => ({ ...d, label: `${d.group} (n=${d.count})` }));
+  return (
+    <div className="chart-card">
+      <h3 style={{ marginBottom: note ? '0.25rem' : '1rem' }}>{title}</h3>
+      {note && <p style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '1rem' }}>{note}</p>}
+      {chartData.length === 0 ? (
+        <p style={{ color: '#9ca3af', textAlign: 'center', padding: '2rem 0', fontSize: '0.875rem' }}>Not enough data (min. 2 patients per group)</p>
+      ) : (
+        <div style={{ height: 230 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={chartData} margin={{ top: 10, right: 10, bottom: 55, left: 0 }}>
+              <XAxis dataKey="label" tick={{ fontSize: 10 }} angle={-25} textAnchor="end" interval={0} />
+              <YAxis tick={{ fontSize: 11 }} />
+              <RechartsTooltip formatter={(val: any) => typeof val === 'number' ? val.toFixed(2) : val} />
+              <ReferenceLine y={0} stroke="#d1d5db" />
+              <Bar dataKey="avgPainChange" name="Pain Change" fill="#ef4444" radius={[3, 3, 0, 0]} />
+              <Bar dataKey="avgFunctionChange" name="Function Change" fill="#10b981" radius={[3, 3, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+      <div style={{ display: 'flex', gap: '1.5rem', justifyContent: 'center', marginTop: '0.5rem', fontSize: '0.75rem', color: '#6b7280' }}>
+        <span><span style={{ display: 'inline-block', width: 10, height: 10, background: '#ef4444', borderRadius: 2, marginRight: 4 }} />Pain Change</span>
+        <span><span style={{ display: 'inline-block', width: 10, height: 10, background: '#10b981', borderRadius: 2, marginRight: 4 }} />Function Change</span>
+      </div>
+    </div>
+  );
+};
 
 export default function App() {
   const [data, setData] = useState<any>(null);
@@ -11,8 +48,9 @@ export default function App() {
   const [lastUpdated, setLastUpdated] = useState<string>('');
   const [physios, setPhysios] = useState<any[]>([]);
   const [selectedPhysio, setSelectedPhysio] = useState<string>('');
-  const [activeTab, setActiveTab] = useState<'investor' | 'physio'>('investor');
+  const [activeTab, setActiveTab] = useState<'investor' | 'physio' | 'analysis'>('investor');
   const [capacitySearch, setCapacitySearch] = useState('');
+  const [corrData, setCorrData] = useState<any>(null);
   
   // Chatbot State
   const [isChatOpen, setIsChatOpen] = useState(false);
@@ -75,6 +113,14 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    const url = selectedPhysio ? `/api/correlations?physioId=${selectedPhysio}` : '/api/correlations';
+    fetch(url)
+      .then(res => res.json())
+      .then(res => setCorrData(res))
+      .catch(err => console.error('Failed to fetch correlation data', err));
+  }, [selectedPhysio]);
+
+  useEffect(() => {
     const fetchData = () => {
       const url = selectedPhysio ? `/api/stats?physioId=${selectedPhysio}` : '/api/stats';
       fetch(url)
@@ -135,11 +181,17 @@ export default function App() {
             >
               Investor
             </button>
-            <button 
+            <button
               onClick={() => setActiveTab('physio')}
               style={{ padding: '0.4rem 1.25rem', borderRadius: '2rem', border: 'none', background: activeTab === 'physio' ? 'white' : 'transparent', color: activeTab === 'physio' ? '#111827' : '#6b7280', fontSize: '0.875rem', fontWeight: 600, cursor: 'pointer', boxShadow: activeTab === 'physio' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none' }}
             >
               Physio
+            </button>
+            <button
+              onClick={() => setActiveTab('analysis')}
+              style={{ padding: '0.4rem 1.25rem', borderRadius: '2rem', border: 'none', background: activeTab === 'analysis' ? 'white' : 'transparent', color: activeTab === 'analysis' ? '#111827' : '#6b7280', fontSize: '0.875rem', fontWeight: 600, cursor: 'pointer', boxShadow: activeTab === 'analysis' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none' }}
+            >
+              Analysis
             </button>
           </div>
           {isAdmin && (
@@ -741,6 +793,46 @@ export default function App() {
               ))
             )}
           </div>
+        </div>
+      )}
+
+      {activeTab === 'analysis' && (
+        <div>
+          <h2 className="section-title">PROMs Correlation Analysis</h2>
+          <p style={{ color: '#6b7280', fontSize: '0.875rem', marginBottom: '1.5rem', background: '#f9fafb', padding: '1rem', borderRadius: '0.5rem', border: '1px solid #e5e7eb' }}>
+            <strong>How to read:</strong> Each bar shows the average change in Pain and Function scores for a patient group.{' '}
+            <strong>Positive = improvement.</strong> Only groups with 2+ patients are shown.
+            {corrData?.totalPatients ? ` Based on ${corrData.totalPatients} patients with longitudinal PROMs.` : ''}
+          </p>
+
+          {!corrData ? (
+            <div style={{ textAlign: 'center', padding: '3rem', color: '#6b7280' }}>Loading analysis...</div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(420px, 1fr))', gap: '1.5rem' }}>
+              <CorrelationChart title="By Gender" data={corrData.byGender || []} />
+              <CorrelationChart title="By Activity Level" data={corrData.byActivityLevel || []} />
+              <CorrelationChart
+                title="By Body Part"
+                data={(corrData.byBodyPart || []).slice(0, 8)}
+                note="Top 8 body parts by patient count"
+              />
+              <CorrelationChart
+                title="By Number of Test Sessions"
+                data={sortBuckets(corrData.bySessionCount || [], ['1 Session', '2-3 Sessions', '4+ Sessions'])}
+                note="Objective test sessions recorded alongside PROMs"
+              />
+              <CorrelationChart
+                title="By Treatment Duration"
+                data={sortBuckets(corrData.byDuration || [], ['Short (<4wk)', 'Medium (4-12wk)', 'Long (12wk+)'])}
+                note="Time between first and last PROMs submission"
+              />
+              <CorrelationChart
+                title="By Baseline Pain Level"
+                data={sortBuckets(corrData.byBasePain || [], ['Low (0-3)', 'Medium (4-6)', 'High (7-10)'])}
+                note="Starting pain score at first PROMs submission"
+              />
+            </div>
+          )}
         </div>
       )}
 

@@ -559,6 +559,148 @@ app.get('/api/stats', async (req, res) => {
   }
 });
 
+app.get('/api/correlations', async (req, res) => {
+  let connection;
+  try {
+    connection = await mysql.createConnection({
+      host: process.env.DB_HOST || '127.0.0.1',
+      port: process.env.DB_PORT || 3307,
+      user: process.env.DB_USER || 'benchmark2026',
+      password: process.env.DB_PASSWORD || 'Benchmark941!!',
+      database: process.env.DB_NAME || 'benchmark-mysql',
+      ssl: process.env.DB_HOST ? { rejectUnauthorized: false } : null,
+      connectTimeout: 10000
+    });
+
+    let excludeCondition = "u.is_test_account = 0 AND u.email NOT LIKE '%@benchmarkps.org' AND u.email NOT LIKE 'gus@%'";
+    if (req.query.physioId) {
+      excludeCondition += ` AND u.id = ${connection.escape(req.query.physioId)}`;
+    }
+
+    const [promsRecords] = await connection.query(`
+      SELECT
+        psf.patient_id, psf.created_at, psf.pain_intensity,
+        psf.activity_one_result, psf.activity_two_result, psf.activity_three_result,
+        p.gender, p.activity_level,
+        bp.name AS body_part_name
+      FROM patient_symptoms_form psf
+      JOIN patients p ON psf.patient_id = p.id
+      JOIN users u ON p.doctor_id = u.id
+      LEFT JOIN injury i ON p.id = i.patient_id
+      LEFT JOIN body_parts bp ON i.body_part_id = bp.id
+      WHERE ${excludeCondition}
+      ORDER BY psf.patient_id, psf.created_at ASC
+    `);
+
+    const [sessionCounts] = await connection.query(`
+      SELECT pts.patient_id, COUNT(*) AS session_count
+      FROM patient_test_sessions pts
+      JOIN patients p ON pts.patient_id = p.id
+      JOIN users u ON p.doctor_id = u.id
+      WHERE ${excludeCondition}
+      GROUP BY pts.patient_id
+    `);
+
+    const sessionCountMap = {};
+    for (const row of sessionCounts) {
+      sessionCountMap[row.patient_id] = parseInt(row.session_count);
+    }
+
+    const patientProms = {};
+    for (const row of promsRecords) {
+      if (!patientProms[row.patient_id]) {
+        patientProms[row.patient_id] = {
+          records: [],
+          gender: row.gender,
+          activity_level: row.activity_level,
+          body_part_name: row.body_part_name
+        };
+      }
+      patientProms[row.patient_id].records.push(row);
+    }
+
+    const getMeanActivity = (record) => {
+      const vals = [record.activity_one_result, record.activity_two_result, record.activity_three_result].filter(v => v !== null);
+      return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+    };
+
+    const patientChanges = [];
+
+    for (const patientId in patientProms) {
+      const { records, gender, activity_level, body_part_name } = patientProms[patientId];
+      if (records.length < 2) continue;
+
+      const first = records[0];
+      const last = records[records.length - 1];
+      const daysDiff = (new Date(last.created_at) - new Date(first.created_at)) / (1000 * 60 * 60 * 24);
+
+      if (daysDiff < 3) continue;
+
+      const pChange = (first.pain_intensity !== null && last.pain_intensity !== null)
+        ? last.pain_intensity - first.pain_intensity : null;
+
+      const firstMean = getMeanActivity(first);
+      const lastMean = getMeanActivity(last);
+      const aChange = (firstMean !== null && lastMean !== null) ? lastMean - firstMean : null;
+
+      const sessions = sessionCountMap[patientId] || 0;
+      const sessionBucket = sessions <= 1 ? '1 Session' : sessions <= 3 ? '2-3 Sessions' : '4+ Sessions';
+
+      const durationWeeks = daysDiff / 7;
+      const durationBucket = durationWeeks < 4 ? 'Short (<4wk)' : durationWeeks < 12 ? 'Medium (4-12wk)' : 'Long (12wk+)';
+
+      const basePain = first.pain_intensity;
+      const basePainBucket = basePain === null ? 'Unknown' : basePain <= 3 ? 'Low (0-3)' : basePain <= 6 ? 'Medium (4-6)' : 'High (7-10)';
+
+      patientChanges.push({
+        pChange,
+        aChange,
+        gender: gender || 'Unknown',
+        activity_level: activity_level || 'Unknown',
+        body_part: body_part_name || 'Other',
+        sessionBucket,
+        durationBucket,
+        basePainBucket
+      });
+    }
+
+    const groupBy = (data, key) => {
+      const groups = {};
+      for (const item of data) {
+        const g = item[key];
+        if (!groups[g]) groups[g] = { pChanges: [], aChanges: [] };
+        if (item.pChange !== null) groups[g].pChanges.push(item.pChange);
+        if (item.aChange !== null) groups[g].aChanges.push(item.aChange);
+      }
+      const avg = arr => arr.length ? parseFloat((arr.reduce((a, b) => a + b, 0) / arr.length).toFixed(2)) : null;
+      return Object.entries(groups)
+        .map(([group, d]) => ({
+          group,
+          count: Math.max(d.pChanges.length, d.aChanges.length),
+          avgPainChange: avg(d.pChanges),
+          avgFunctionChange: avg(d.aChanges)
+        }))
+        .filter(g => g.count >= 2);
+    };
+
+    res.json({
+      byGender: groupBy(patientChanges, 'gender'),
+      byActivityLevel: groupBy(patientChanges, 'activity_level'),
+      byBodyPart: groupBy(patientChanges, 'body_part').sort((a, b) => b.count - a.count),
+      bySessionCount: groupBy(patientChanges, 'sessionBucket'),
+      byDuration: groupBy(patientChanges, 'durationBucket'),
+      byBasePain: groupBy(patientChanges, 'basePainBucket'),
+      totalPatients: patientChanges.length
+    });
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: error.message });
+  } finally {
+    if (connection) await connection.end();
+  }
+});
+
 const distPath = path.join(__dirname, '..', 'ui', 'dist');
 app.use(express.static(distPath));
 app.use((req, res) => { res.sendFile(path.join(distPath, 'index.html')); });
