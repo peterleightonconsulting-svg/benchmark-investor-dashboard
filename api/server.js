@@ -874,9 +874,9 @@ app.get('/api/test-proms', async (req, res) => {
       WHERE ${EXCLUDE} AND i.body_part_id IS NOT NULL
       GROUP BY i.patient_id
     `);
-    const injuryBodyPart = {};
+    const injuryBodyPart = {}; // pid -> { name, id }
     for (const row of injuryRows) {
-      injuryBodyPart[row.patient_id] = normBodyPart(row.body_part_name);
+      injuryBodyPart[row.patient_id] = { name: normBodyPart(row.body_part_name), id: row.body_part_id };
     }
 
     // Build PROMs deltas
@@ -920,7 +920,7 @@ app.get('/api/test-proms', async (req, res) => {
                   : sr !== null ? sr
                   : sn;
       if (score !== null && !isNaN(score)) {
-        patientSessions[pid][sid].tests[row.test_id] = { score, category: row.category, testName: row.test_name };
+        patientSessions[pid][sid].tests[row.test_id] = { score, category: row.category, testName: row.test_name, bodyPartId: row.test_body_part_id };
       }
     }
 
@@ -967,8 +967,9 @@ app.get('/api/test-proms', async (req, res) => {
       const proms = promsDeltas[pidInt];
       if (!proms) continue;
       const compositeZ = parseFloat((zData.all.reduce((s, v) => s + v, 0) / zData.all.length).toFixed(3));
-      const injBP = injuryBodyPart[pidInt] || 'Unknown';
-      scatterPoints.push({ compositeZ, deltaPain: proms.deltaPain, deltaFunction: proms.deltaFunction, injuredBodyPart: injBP });
+      const injInfo = injuryBodyPart[pidInt];
+      const injBPName = injInfo ? injInfo.name : 'Unknown';
+      scatterPoints.push({ compositeZ, deltaPain: proms.deltaPain, deltaFunction: proms.deltaFunction, injuredBodyPart: injBPName });
       for (const [cat, zs] of Object.entries(zData.byCategory)) {
         if (!categoryBuckets[cat]) categoryBuckets[cat] = [];
         categoryBuckets[cat].push({
@@ -977,8 +978,53 @@ app.get('/api/test-proms', async (req, res) => {
           deltaFunction: proms.deltaFunction,
         });
       }
-      if (!bodyPartBuckets[injBP]) bodyPartBuckets[injBP] = [];
-      bodyPartBuckets[injBP].push({ compositeZ, deltaPain: proms.deltaPain, deltaFunction: proms.deltaFunction });
+      if (!bodyPartBuckets[injBPName]) bodyPartBuckets[injBPName] = [];
+      bodyPartBuckets[injBPName].push({ compositeZ, deltaPain: proms.deltaPain, deltaFunction: proms.deltaFunction });
+    }
+
+    // Second pass: injury-matched composite (only tests for patient's own body part)
+    const matchedTestDeltas = {};
+    for (const [pid, sessMap] of Object.entries(patientSessions)) {
+      const pidInt = parseInt(pid);
+      if (!promsDeltas[pidInt]) continue;
+      const injInfo = injuryBodyPart[pidInt];
+      if (!injInfo) continue;
+      const sessions = Object.values(sessMap).sort((a, b) => a.date - b.date);
+      if (sessions.length < 2) continue;
+      const first = sessions[0], last = sessions[sessions.length - 1];
+      for (const testId of Object.keys(first.tests)) {
+        if (!last.tests[testId]) continue;
+        if (first.tests[testId].bodyPartId !== injInfo.id) continue;
+        const delta = last.tests[testId].score - first.tests[testId].score;
+        const { category, testName } = first.tests[testId];
+        if (!matchedTestDeltas[testId]) matchedTestDeltas[testId] = { testName, category, deltas: [] };
+        matchedTestDeltas[testId].deltas.push({ pid: pidInt, delta });
+      }
+    }
+    const matchedPatientZ = {};
+    for (const info of Object.values(matchedTestDeltas)) {
+      if (info.deltas.length < 4) continue;
+      const vals = info.deltas.map(d => d.delta);
+      const mean = vals.reduce((s, v) => s + v, 0) / vals.length;
+      const std = Math.sqrt(vals.reduce((s, v) => s + (v - mean) ** 2, 0) / vals.length);
+      if (std < 0.001) continue;
+      for (const { pid, delta } of info.deltas) {
+        const z = (delta - mean) / std;
+        if (!matchedPatientZ[pid]) matchedPatientZ[pid] = [];
+        matchedPatientZ[pid].push(z);
+      }
+    }
+    const scatterMatched = [];
+    for (const [pid, zs] of Object.entries(matchedPatientZ)) {
+      const pidInt = parseInt(pid);
+      const proms = promsDeltas[pidInt];
+      if (!proms) continue;
+      scatterMatched.push({
+        compositeZ: parseFloat((zs.reduce((s, v) => s + v, 0) / zs.length).toFixed(3)),
+        deltaPain: proms.deltaPain,
+        deltaFunction: proms.deltaFunction,
+        injuredBodyPart: injuryBodyPart[pidInt]?.name || 'Unknown',
+      });
     }
 
     if (scatterPoints.length < 5) {
@@ -1008,7 +1054,19 @@ app.get('/api/test-proms', async (req, res) => {
       }))
       .sort((a, b) => b.n - a.n);
 
-    res.json({ total: scatterPoints.length, overallCorrPain, overallCorrFunction, byCategory, byInjuredBodyPart, scatterPoints });
+    const matchedCorrPain = scatterMatched.length >= 5
+      ? pearsonCorrelation(scatterMatched.map(p => p.compositeZ), scatterMatched.map(p => p.deltaPain)) : null;
+    const matchedCorrFunction = scatterMatched.length >= 5
+      ? pearsonCorrelation(scatterMatched.map(p => p.compositeZ), scatterMatched.map(p => p.deltaFunction)) : null;
+
+    res.json({
+      total: scatterPoints.length,
+      totalMatched: scatterMatched.length,
+      overallCorrPain, overallCorrFunction,
+      matchedCorrPain, matchedCorrFunction,
+      byCategory, byInjuredBodyPart,
+      scatterPoints, scatterMatched,
+    });
 
   } catch (err) {
     console.error('/api/test-proms error:', err);

@@ -1231,6 +1231,57 @@ export default function App() {
                   );
                 })()}
               </div>
+
+              {/* Injury-matched scatter */}
+              {testPromsData.scatterMatched?.length >= 5 && (() => {
+                const pts = testPromsData.scatterMatched as any[];
+                const reg = linearReg(pts.map((p: any) => ({ x: p.compositeZ, y: p.deltaPain })));
+                const xs = pts.map((p: any) => p.compositeZ);
+                const minX = Math.min(...xs), maxX = Math.max(...xs);
+                const trendLine = [
+                  { compositeZ: minX, deltaPain: parseFloat((reg.m * minX + reg.b).toFixed(2)) },
+                  { compositeZ: maxX, deltaPain: parseFloat((reg.m * maxX + reg.b).toFixed(2)) },
+                ];
+                return (
+                  <div className="chart-card" style={{ marginTop: '1.5rem' }}>
+                    <div style={{ marginBottom: '1rem' }}>
+                      <h3 style={{ margin: 0, marginBottom: '0.25rem' }}>Injured Body Part Tests Only vs Δ Pain</h3>
+                      <p style={{ fontSize: '0.75rem', color: '#6b7280', margin: 0 }}>
+                        r = {testPromsData.matchedCorrPain} · R² = {reg.r2} · n = {pts.length} · composite uses only tests matching each patient's own injured body part
+                      </p>
+                    </div>
+                    <div style={{ height: 320 }}>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <ScatterChart margin={{ top: 10, right: 20, bottom: 40, left: 20 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+                          <XAxis type="number" dataKey="compositeZ" name="Matched Test Δ (z)" tick={{ fontSize: 11 }} label={{ value: 'Injured Body Part Test Improvement (z-score)', position: 'insideBottom', offset: -28, fontSize: 11, fill: '#6b7280' }} />
+                          <YAxis type="number" dataKey="deltaPain" name="Δ Pain" tick={{ fontSize: 11 }} label={{ value: 'Δ Pain', angle: -90, position: 'insideLeft', fontSize: 11, fill: '#6b7280' }} />
+                          <ZAxis range={[40, 40]} />
+                          <RechartsTooltip content={({ active, payload }: any) => {
+                            if (!active || !payload?.length) return null;
+                            const d = payload[0].payload;
+                            if (d.deltaPain === undefined) return null;
+                            return (
+                              <div style={{ background: 'white', border: '1px solid #e5e7eb', padding: '0.5rem 0.75rem', borderRadius: '0.5rem', fontSize: '0.8rem' }}>
+                                <p style={{ margin: 0, fontWeight: 600 }}>{d.injuredBodyPart}</p>
+                                <p style={{ margin: 0 }}>Test Δ (z): <strong>{d.compositeZ}</strong></p>
+                                <p style={{ margin: 0 }}>Pain Δ: <strong>{d.deltaPain > 0 ? '+' : ''}{d.deltaPain}</strong></p>
+                              </div>
+                            );
+                          }} />
+                          <ReferenceLine x={0} stroke="#d1d5db" strokeDasharray="5 5" />
+                          <ReferenceLine y={0} stroke="#d1d5db" strokeDasharray="5 5" />
+                          {BODY_PART_COLORS.map(({ part, color }) => (
+                            <Scatter key={part} name={part} data={pts.filter((p: any) => p.injuredBodyPart === part)} fill={color} opacity={0.8} />
+                          ))}
+                          <Line data={trendLine as any} type="linear" dataKey="deltaPain" stroke="#1f2937" strokeWidth={2} strokeDasharray="6 3" dot={false} activeDot={false} legendType="none" />
+                          <Legend verticalAlign="top" height={36} wrapperStyle={{ fontSize: '0.75rem', paddingBottom: '0.5rem' }} />
+                        </ScatterChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           )}
 
