@@ -853,7 +853,7 @@ app.get('/api/test-proms', async (req, res) => {
     const [testRows] = await connection.execute(`
       SELECT pts.patient_id, pts.id AS session_id, pts.created_at AS session_date,
              ptr.test_id, ptr.left AS score_left, ptr.right AS score_right, ptr.no_laterality,
-             tl.name AS test_name, tc.name AS category
+             tl.name AS test_name, tc.name AS category, tl.body_part_id AS test_body_part_id
       FROM patient_test_sessions pts
       JOIN patients p ON pts.patient_id = p.id
       JOIN users u ON p.doctor_id = u.id
@@ -863,6 +863,21 @@ app.get('/api/test-proms', async (req, res) => {
       WHERE ${EXCLUDE}
       ORDER BY pts.patient_id, pts.created_at ASC
     `);
+
+    // Primary injured body part per patient
+    const [injuryRows] = await connection.execute(`
+      SELECT i.patient_id, ANY_VALUE(i.body_part_id) AS body_part_id, ANY_VALUE(bp.name) AS body_part_name
+      FROM injury i
+      JOIN patients p ON i.patient_id = p.id
+      JOIN users u ON p.doctor_id = u.id
+      JOIN body_parts bp ON i.body_part_id = bp.id
+      WHERE ${EXCLUDE} AND i.body_part_id IS NOT NULL
+      GROUP BY i.patient_id
+    `);
+    const injuryBodyPart = {};
+    for (const row of injuryRows) {
+      injuryBodyPart[row.patient_id] = normBodyPart(row.body_part_name);
+    }
 
     // Build PROMs deltas
     const promsMap = {};
@@ -888,7 +903,7 @@ app.get('/api/test-proms', async (req, res) => {
       };
     }
 
-    // Build test sessions per patient
+    // Build test sessions per patient (all tests — composite uses all body parts)
     const patientSessions = {};
     for (const row of testRows) {
       const pid = row.patient_id;
@@ -943,15 +958,17 @@ app.get('/api/test-proms', async (req, res) => {
       }
     }
 
-    // Build scatter points and category buckets
+    // Build scatter points, category buckets, and injured body part buckets
     const scatterPoints = [];
     const categoryBuckets = {};
+    const bodyPartBuckets = {};
     for (const [pid, zData] of Object.entries(patientZScores)) {
       const pidInt = parseInt(pid);
       const proms = promsDeltas[pidInt];
       if (!proms) continue;
       const compositeZ = parseFloat((zData.all.reduce((s, v) => s + v, 0) / zData.all.length).toFixed(3));
-      scatterPoints.push({ compositeZ, deltaPain: proms.deltaPain, deltaFunction: proms.deltaFunction });
+      const injBP = injuryBodyPart[pidInt] || 'Unknown';
+      scatterPoints.push({ compositeZ, deltaPain: proms.deltaPain, deltaFunction: proms.deltaFunction, injuredBodyPart: injBP });
       for (const [cat, zs] of Object.entries(zData.byCategory)) {
         if (!categoryBuckets[cat]) categoryBuckets[cat] = [];
         categoryBuckets[cat].push({
@@ -960,10 +977,12 @@ app.get('/api/test-proms', async (req, res) => {
           deltaFunction: proms.deltaFunction,
         });
       }
+      if (!bodyPartBuckets[injBP]) bodyPartBuckets[injBP] = [];
+      bodyPartBuckets[injBP].push({ compositeZ, deltaPain: proms.deltaPain, deltaFunction: proms.deltaFunction });
     }
 
     if (scatterPoints.length < 5) {
-      return res.json({ total: scatterPoints.length, insufficient: true, byCategory: [], scatterPoints: [] });
+      return res.json({ total: scatterPoints.length, insufficient: true, byCategory: [], byInjuredBodyPart: [], scatterPoints: [] });
     }
 
     const overallCorrPain = pearsonCorrelation(scatterPoints.map(p => p.compositeZ), scatterPoints.map(p => p.deltaPain));
@@ -979,7 +998,17 @@ app.get('/api/test-proms', async (req, res) => {
       }))
       .sort((a, b) => b.n - a.n);
 
-    res.json({ total: scatterPoints.length, overallCorrPain, overallCorrFunction, byCategory, scatterPoints });
+    const byInjuredBodyPart = Object.entries(bodyPartBuckets)
+      .filter(([, pts]) => pts.length >= 4)
+      .map(([bp, pts]) => ({
+        bodyPart: bp,
+        n: pts.length,
+        corrWithPain: pearsonCorrelation(pts.map(p => p.compositeZ), pts.map(p => p.deltaPain)),
+        corrWithFunction: pearsonCorrelation(pts.map(p => p.compositeZ), pts.map(p => p.deltaFunction)),
+      }))
+      .sort((a, b) => b.n - a.n);
+
+    res.json({ total: scatterPoints.length, overallCorrPain, overallCorrFunction, byCategory, byInjuredBodyPart, scatterPoints });
 
   } catch (err) {
     console.error('/api/test-proms error:', err);

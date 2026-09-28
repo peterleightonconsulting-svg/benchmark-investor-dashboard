@@ -1108,7 +1108,7 @@ export default function App() {
             <div style={{ marginTop: '2.5rem' }}>
               <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#111827', marginBottom: '0.5rem' }}>Objective Tests vs PROMs</h2>
               <p style={{ fontSize: '0.875rem', color: '#6b7280', marginBottom: '1.5rem', background: '#f9fafb', padding: '0.75rem 1rem', borderRadius: '0.5rem', border: '1px solid #e5e7eb' }}>
-                <strong>Do objective test score improvements track with patient-reported outcomes?</strong> For each patient with 2+ test sessions and 2+ PROMs submissions, test deltas are z-scored within each test type and averaged into a composite. Pearson r then measures alignment with PROMs change. n = {testPromsData.total} patients.
+                <strong>Do objective test score improvements track with patient-reported outcomes?</strong> Only tests matching each patient's injured body part are included. Deltas are z-scored within each test type and averaged into a composite. n = {testPromsData.total} patients.
               </p>
 
               {/* Summary cards */}
@@ -1131,7 +1131,7 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Category correlations + scatter side by side */}
+              {/* Charts grid */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(380px, 1fr))', gap: '1.5rem' }}>
 
                 {/* Correlation by category */}
@@ -1151,6 +1151,31 @@ export default function App() {
                           <RechartsTooltip
                             formatter={(val: any, name: string, props: any) => [`r = ${val} (n=${props.payload.n})`, name]}
                           />
+                          <ReferenceLine x={0} stroke="#d1d5db" />
+                          <Bar dataKey="Pain" name="Pain" fill="#ef4444" radius={[0, 3, 3, 0]} />
+                          <Bar dataKey="Function" name="Function" fill="#10b981" radius={[0, 3, 3, 0]} />
+                          <Legend wrapperStyle={{ fontSize: '0.75rem' }} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                )}
+
+                {/* Correlation by injured body part */}
+                {testPromsData.byInjuredBodyPart?.length > 0 && (
+                  <div className="chart-card">
+                    <h3 style={{ marginBottom: '0.25rem' }}>Correlation by Injured Body Part</h3>
+                    <p style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '1rem' }}>Pearson r between composite test improvement and PROMs change, per injury type</p>
+                    <div style={{ height: Math.max(160, testPromsData.byInjuredBodyPart.length * 60 + 40) }}>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart
+                          data={testPromsData.byInjuredBodyPart.map((c: any) => ({ name: c.bodyPart, Pain: c.corrWithPain, Function: c.corrWithFunction, n: c.n }))}
+                          layout="vertical"
+                          margin={{ top: 5, right: 20, bottom: 5, left: 10 }}
+                        >
+                          <XAxis type="number" domain={[-1, 1]} tick={{ fontSize: 11 }} tickFormatter={(v: number) => v.toFixed(1)} />
+                          <YAxis type="category" dataKey="name" width={110} tick={{ fontSize: 11 }} />
+                          <RechartsTooltip formatter={(val: any, name: string, props: any) => [`r = ${val} (n=${props.payload.n})`, name]} />
                           <ReferenceLine x={0} stroke="#d1d5db" />
                           <Bar dataKey="Pain" name="Pain" fill="#ef4444" radius={[0, 3, 3, 0]} />
                           <Bar dataKey="Function" name="Function" fill="#10b981" radius={[0, 3, 3, 0]} />
