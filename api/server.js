@@ -879,31 +879,14 @@ app.get('/api/test-proms', async (req, res) => {
       injuryBodyPart[row.patient_id] = { name: normBodyPart(row.body_part_name), id: row.body_part_id };
     }
 
-    // Build PROMs deltas
+    // Step 1: group PROMs rows by patient (no deltas yet — we need test dates first)
     const promsMap = {};
     for (const row of promsRows) {
       if (!promsMap[row.patient_id]) promsMap[row.patient_id] = [];
       promsMap[row.patient_id].push(row);
     }
-    const promsDeltas = {};
-    for (const [pid, rows] of Object.entries(promsMap)) {
-      if (rows.length < 2) continue;
-      const first = rows[0], last = rows[rows.length - 1];
-      const days = (new Date(last.created_at) - new Date(first.created_at)) / 86400000;
-      if (days < 3) continue;
-      const bp = first.pain_intensity, lp = last.pain_intensity;
-      const bfVals = [first.activity_one_result, first.activity_two_result, first.activity_three_result].filter(v => v !== null);
-      const lfVals = [last.activity_one_result, last.activity_two_result, last.activity_three_result].filter(v => v !== null);
-      if (bp === null || lp === null || !bfVals.length || !lfVals.length) continue;
-      const bf = bfVals.reduce((s, v) => s + v, 0) / bfVals.length;
-      const lf = lfVals.reduce((s, v) => s + v, 0) / lfVals.length;
-      promsDeltas[parseInt(pid)] = {
-        deltaPain: parseFloat((lp - bp).toFixed(2)),
-        deltaFunction: parseFloat((lf - bf).toFixed(2)),
-      };
-    }
 
-    // Build test sessions per patient (all tests — composite uses all body parts)
+    // Step 2: build test sessions per patient
     const patientSessions = {};
     for (const row of testRows) {
       const pid = row.patient_id;
@@ -924,7 +907,36 @@ app.get('/api/test-proms', async (req, res) => {
       }
     }
 
-    // Compute per-test deltas (first → last session) for patients with both data
+    // Step 3: compute test date range per patient, then align PROMs delta to that window
+    const closest = (rows, targetDate) =>
+      rows.reduce((best, row) => {
+        const d = Math.abs(new Date(row.created_at) - targetDate);
+        return d < best.d ? { row, d } : best;
+      }, { row: null, d: Infinity }).row;
+
+    const promsDeltas = {};
+    for (const [pid, sessMap] of Object.entries(patientSessions)) {
+      const pidInt = parseInt(pid);
+      const pRows = promsMap[pidInt];
+      if (!pRows || pRows.length < 2) continue;
+      const sessions = Object.values(sessMap).sort((a, b) => a.date - b.date);
+      if (sessions.length < 2) continue;
+      const firstTestDate = sessions[0].date;
+      const lastTestDate  = sessions[sessions.length - 1].date;
+      const firstProm = closest(pRows, firstTestDate);
+      const lastProm  = closest(pRows, lastTestDate);
+      if (!firstProm || !lastProm || firstProm === lastProm) continue;
+      const bp = firstProm.pain_intensity, lp = lastProm.pain_intensity;
+      const bfVals = [firstProm.activity_one_result, firstProm.activity_two_result, firstProm.activity_three_result].filter(v => v !== null);
+      const lfVals = [lastProm.activity_one_result,  lastProm.activity_two_result,  lastProm.activity_three_result].filter(v => v !== null);
+      if (bp === null || lp === null || !bfVals.length || !lfVals.length) continue;
+      promsDeltas[pidInt] = {
+        deltaPain:     parseFloat((lp - bp).toFixed(2)),
+        deltaFunction: parseFloat(((lfVals.reduce((s, v) => s + v, 0) / lfVals.length) - (bfVals.reduce((s, v) => s + v, 0) / bfVals.length)).toFixed(2)),
+      };
+    }
+
+    // Step 4: compute per-test deltas for patients with aligned PROMs
     const testDeltas = {};
     for (const [pid, sessMap] of Object.entries(patientSessions)) {
       const pidInt = parseInt(pid);
@@ -941,7 +953,8 @@ app.get('/api/test-proms', async (req, res) => {
       }
     }
 
-    // Z-score each test's deltas, accumulate per-patient composite
+    // Step 5: scale-normalise each test (divide by std, no mean subtraction)
+    // so positive = improved, negative = worsened, magnitude = units of typical variation
     const patientZScores = {};
     for (const info of Object.values(testDeltas)) {
       if (info.deltas.length < 4) continue;
@@ -950,7 +963,7 @@ app.get('/api/test-proms', async (req, res) => {
       const std = Math.sqrt(vals.reduce((s, v) => s + (v - mean) ** 2, 0) / vals.length);
       if (std < 0.001) continue;
       for (const { pid, delta } of info.deltas) {
-        const z = (delta - mean) / std;
+        const z = delta / std;   // scale only — positive means improved
         if (!patientZScores[pid]) patientZScores[pid] = { all: [], byCategory: {} };
         patientZScores[pid].all.push(z);
         if (!patientZScores[pid].byCategory[info.category]) patientZScores[pid].byCategory[info.category] = [];
@@ -1009,7 +1022,7 @@ app.get('/api/test-proms', async (req, res) => {
       const std = Math.sqrt(vals.reduce((s, v) => s + (v - mean) ** 2, 0) / vals.length);
       if (std < 0.001) continue;
       for (const { pid, delta } of info.deltas) {
-        const z = (delta - mean) / std;
+        const z = delta / std;   // scale only
         if (!matchedPatientZ[pid]) matchedPatientZ[pid] = [];
         matchedPatientZ[pid].push(z);
       }
